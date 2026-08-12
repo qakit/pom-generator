@@ -1,7 +1,7 @@
 {
   "name": "pom-generator",
   "owner": {
-    "name": "AndrewEgorov",
+    "name": "YOUR_NAME",
     "url": "https://github.com/AndrewEgorov"
   },
   "description": "Playwright + TypeScript Page Object generator: explores your existing framework, generates wrappers that match it, and learns from your corrections.",

@@ -20,8 +20,11 @@ steps:
 
 Procedure:
 
-0. **Preflight.** Same check as `generate-single.md` — verify `auth/storageState.json`
-   exists before doing anything else, and verify the Playwright MCP tools are available.
+0. **Preflight — navigate and check login state.** Same check as step 0 in
+   `generate-single.md`: navigate to `start`, snapshot, determine if logged in. If not,
+   tell the user a browser window is open for them to log in, and wait for their
+   confirmation before proceeding. Thanks to the MCP server's persistent profile
+   (no `--isolated`/`--storage-state` by default), this is a one-time thing per project.
 
 1. Read `.pom-generator/conventions.md` and `component-registry.md`.
 2. Open `start`, snapshot, generate the Page Object for the starting page (same

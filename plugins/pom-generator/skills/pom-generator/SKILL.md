@@ -1,13 +1,14 @@
 ---
 name: pom-generator
-description: Use this skill for anything related to generating, updating, or maintaining Playwright + TypeScript Page Object wrappers from a real running application. Trigger this whenever the user asks to "wrap a page", "generate a page object", "create a POM", "explore the framework", "learn my conventions", or mentions component-registry, page objects, or test framework wrappers for Playwright/TS. Also trigger after the user manually edits a generated Page Object and wants the skill to learn from the correction. Push to use this proactively any time a Playwright+TS test framework and page-wrapping task come up together, even if the user doesn't name the skill explicitly.
+description: Use this skill for anything related to generating, updating, or maintaining Page Object wrappers (Playwright, any language) from a real running application. Trigger this whenever the user asks to "wrap a page", "generate a page object", "create a POM", "explore the framework", "learn my conventions", or mentions component-registry, page objects, or test framework wrappers. Also trigger after the user manually edits a generated Page Object and wants the skill to learn from the correction. Push to use this proactively any time a Playwright test framework and page-wrapping task come up together, even if the user doesn't name the skill explicitly.
 ---
 
 # Playwright POM Generator
 
-Generates Page Object Model wrappers (pages/elements/components) for a Playwright + TS
-test framework, matching the existing conventions of the user's own codebase — not
-generic boilerplate.
+Generates Page Object Model wrappers (pages/elements/components) for a Playwright test
+framework, matching the existing conventions of the user's own codebase — not generic
+boilerplate. Language-neutral: works with TypeScript/JavaScript, Python, or other
+Playwright bindings, by detecting what the project actually uses rather than assuming.
 
 This skill has three stages. Figure out which one the user needs and jump in.
 
@@ -17,33 +18,60 @@ Run when: the skill has never been used in this repo (no `.pom-generator/convent
 exists yet), OR the user asks to "explore", "learn my framework", "refresh conventions",
 or the framework has changed significantly since last explore.
 
-Goal of this stage: understand **everything** about how this project's Playwright + TS
+Goal of this stage: understand **everything** about how this project's Playwright
 framework is built AND how it's actually used in real tests — not just the shape of the
 Page Object files, but the usage patterns, conventions, and dependencies around them.
-Nothing gets changed or "fixed" in this stage — that's a separate, later stage
-(see Stage 3 — Improve/Suggest, not run automatically, only on explicit request).
+Nothing gets changed or "fixed" in this stage — that's a separate, later, explicitly-
+requested stage (see Stage 3 — Improve/Suggest, not run automatically as part of Explore).
 
 Output location: **`.pom-generator/` in the user's repo** (NOT inside this skill folder —
 this skill is portable across repos, exploration output is repo-specific):
 - `conventions.md`
 - `component-registry.md`
-- `structure-notes.md` (new — see Stage 0.5 below)
+- `structure-notes.md` (advisory observations — see Stage 0.5)
 
 Work through the sub-stages below in order. After EACH sub-stage, show the user what
 you found/drafted and wait for confirmation or corrections before moving to the next.
 Never collapse multiple sub-stages into one uninterrupted pass — the checkpoint is what
 lets the user catch a wrong inference before it propagates into later stages.
 
+### Stage 0.0 — Detect language, test framework, and tooling
+
+Before scanning any code for conventions, determine:
+- **Language**: look for `package.json`+`.ts`/`.js` files (TypeScript/JavaScript),
+  `pyproject.toml`/`requirements.txt`+`.py` files (Python), `.csproj` (C#), `pom.xml`/
+  `build.gradle` (Java/Kotlin), etc.
+- **Playwright binding & API style**: for Python specifically, detect sync vs async
+  usage (`sync_playwright` vs `async_playwright`, `def` vs `async def` test functions)
+  — this materially changes what generated code should look like. For JS/TS, confirm
+  async/await usage (near-universal, but confirm).
+- **Test runner**: pytest, Jest/Vitest, JUnit/TestNG, NUnit, etc.
+- **Type-check / lint tooling actually configured** in this repo (read config files —
+  don't assume any particular tool just because it's a common default; e.g. don't
+  assume ESLint/tsc for a TS repo without checking, don't assume mypy for Python
+  without checking).
+
+Record all of this at the top of `conventions.md` under a "Language & tooling" section.
+Every later stage — including Stage 1 (Generate) — must respect what's recorded here
+instead of assuming any particular language or toolchain.
+
+If the repo mixes multiple languages (e.g. TS UI tests + Python API tests), ask the
+user which one this skill instance should target, or scope explore to one directory
+tree at a time. Conventions/registry files are per-language; if the user wants both
+tracked, keep them in clearly separate sections or separate files and say so.
+
+→ STOP. Show findings. Wait for confirmation or edits.
+
 ### Stage 0.1 — Structure & base classes
 
-Scan `src/pages`, `src/elements`, `src/components` (or wherever the user's POM code
-lives — ask if unclear). Identify:
+Scan the Page Object code (`src/pages`, `src/elements`, `src/components`, or the
+language-appropriate equivalent location — ask if unclear). Identify:
 - Folder layout and what lives where
 - Base classes (`BasePage`, `BaseElement` or equivalents) and exactly what they provide
-  (constructor signature, shared methods, generics used)
-- How files are exported/registered (barrel files, `index.ts`, explicit imports)
+  (constructor signature, shared methods, generics/type parameters used)
+- How files are exported/registered (barrel files, `__init__.py`, explicit imports)
 - Any dependency injection or fixture pattern used to construct Page Objects in tests
-  (e.g. custom Playwright fixtures, a `test.extend()` setup)
+  (e.g. custom Playwright fixtures, `test.extend()`, pytest fixtures)
 
 → Draft the "Structure & base classes" section of `conventions.md`.
 → STOP. Show it. Wait for confirmation or edits.
@@ -54,7 +82,8 @@ Scan actual locator usage across existing files:
 - Real priority order actually used (data-testid vs role vs text vs css) — not what's
   "supposed" to be used, what's actually there
 - Naming convention actually used for classes, locator getters, action methods
-  (`click...`), state-read methods (`get...`/`is...`)
+  (`click...`), state-read methods (`get...`/`is...`) — respecting the target
+  language's idiomatic casing (camelCase for TS/JS, snake_case for Python, etc.)
 - Any consistent suffixing/prefixing convention (e.g. `...Locator` vs bare noun)
 
 → Append the "Naming & locators" section to `conventions.md`.
@@ -72,40 +101,40 @@ and what it should not be confused with.
 ### Stage 0.4 — Usage patterns: how tests actually consume the framework
 
 This is about the framework's **API ergonomics as experienced from the test files**,
-not the Page Object internals. Read a representative sample of actual `.spec.ts` /
-`.test.ts` files (not just the POM classes) and answer:
+not the Page Object internals. Read a representative sample of actual test files (not
+just the POM classes) and answer:
 
 - **Multi-element / list handling.** When a test needs one of several matching
   elements, how is it actually done in this codebase?
   - Raw Playwright `.nth(i)` / `.first()` / `.last()` calls directly in test files?
   - A custom indexing method on the Page Object (e.g. `getRow(index)`,
     `getItemByName(text)`, `getNthCard(i)`)?
-  - Both, inconsistently? (flag this as a Stage 0.6 conflict, don't silently pick one)
+  - Both, inconsistently? (flag this as a conflict, don't silently pick one)
   - Document the dominant pattern and any custom indexing method names actually in use.
 
 - **Return types of these methods.** For each iteration/indexing method found, note
   exactly what it returns:
   - A raw `Locator`?
   - An instance of a wrapper class (e.g. `TableRow`, `ProfileCard`)?
-  - A `Promise<T>` requiring `await`, or a synchronous chainable locator?
+  - Async (`Promise<T>`/`awaitable`) or sync?
   - Is there a consistent rule (e.g. "any method returning a single item returns a
     wrapped class instance, never a raw Locator") — or is it mixed?
 
 - **Iteration over full collections.** How does the codebase loop over "all matching
-  elements" when a test needs that — `locator.all()`, a custom `getAllRows()` returning
-  `Promise<TableRow[]>`, or something else? Note the actual pattern.
+  elements" when a test needs that — `.all()`, a custom `getAllRows()` returning a
+  list/array of wrapper instances, or something else? Note the actual pattern.
 
 - **Navigation and element-return conventions.** How do Page Object methods that cause
   navigation behave?
-  - Do action methods that navigate (e.g. `clickProfile()`) return `void`, return the
-    new Page Object instance (`clickProfile(): ProfilePage`), or require the caller to
-    manually construct the next page?
+  - Do action methods that navigate (e.g. `clickProfile()`) return nothing, return the
+    new Page Object instance for fluent chaining, or require the caller to manually
+    construct the next page?
   - Is there a consistent "fluent" chaining style, or is each navigation handled ad hoc
     in the test?
   - How are elements initially obtained — always via a getter on the Page Object, or
-    sometimes constructed inline in test files with raw `page.locator(...)`? If the
-    latter happens often, note it — it signals gaps in the Page Object coverage that
-    tests are working around.
+    sometimes constructed inline in test files with a raw locator call? If the latter
+    happens often, note it — it signals gaps in Page Object coverage that tests are
+    working around.
 
 → Draft the "Usage patterns" section of `conventions.md`, including the actual method
   signatures/return types you found as concrete examples (not paraphrased).
@@ -113,12 +142,12 @@ not the Page Object internals. Read a representative sample of actual `.spec.ts`
 
 ### Stage 0.5 — Structural observations (advisory only, not applied)
 
-Based on everything gathered in 0.1–0.4, note anything about the current structure that
+Based on everything gathered in 0.0–0.4, note anything about the current structure that
 stands out — inconsistencies, duplication, ergonomics friction, or places where the
 framework diverges from common Playwright POM best practices (e.g.: mixing raw Locators
 and wrapped return types inconsistently; iteration handled differently in different
 files; missing base-class methods that get hand-rolled repeatedly in tests; Page Object
-constructors that don't compose well with Playwright fixtures).
+constructors that don't compose well with the project's fixture pattern).
 
 Write these as `.pom-generator/structure-notes.md` — a plain list of observations, each
 with:
@@ -130,23 +159,24 @@ with:
 
 **This file is purely informational at this stage.** Do not modify any actual framework
 code based on it, and do not fold these observations into `conventions.md` as if they
-were established convention — they are proposals for the user to evaluate. This becomes
-the input for a separate, explicitly-requested `Stage 3 — Improve/Suggest` skill stage,
-which is not run automatically as part of Explore. Mention this file's existence to the
-user when this sub-stage completes.
+were established convention — they are proposals for the user to evaluate. This is the
+input for a separate, explicitly-requested future "Improve/Suggest" stage, which is not
+run automatically as part of Explore. Mention this file's existence to the user when
+this sub-stage completes.
 
 → STOP. Show it. Wait for confirmation, edits, or "skip/not now."
 
 ### Stage 0.6 — Dependencies & environment
 
 Capture, in a short "Dependencies" section of `conventions.md`:
-- Playwright version and any relevant config (`playwright.config.ts` — projects,
-  timeouts, base URL handling)
-- Fixture setup (custom `test.extend()` fixtures, if any, and what they inject)
+- Playwright version and any relevant config (`playwright.config.ts`/`pytest.ini`/
+  `conftest.py` — projects, timeouts, base URL handling)
+- Fixture setup (custom fixtures, if any, and what they inject)
 - Any non-Playwright libraries the framework itself depends on (e.g. a custom assertion
   library, a data-factory library, an API-mocking layer)
-- TypeScript strictness settings relevant to how POM classes are typed (`strict`,
-  `noImplicitAny`, etc. — affects whether return types should be explicit)
+- Type system strictness settings relevant to how POM classes are typed (TS `strict`/
+  `noImplicitAny`, Python type-hint enforcement via mypy strictness, etc. — affects
+  whether return types should be explicit)
 
 → Append to `conventions.md`.
 → STOP. Show it. Wait for confirmation or edits.
@@ -158,7 +188,7 @@ If a re-run finds existing `conventions.md` / `component-registry.md` /
 additions/changes, and explicitly flag anything that contradicts an existing entry —
 never silently resolve a conflict.
 
-If inconsistent usage is found anywhere in Stages 0.1–0.4 (same type of element or
+If inconsistent usage is found anywhere in Stages 0.0–0.4 (same type of element or
 pattern handled differently in different files), flag it as a conflict for the user to
 resolve rather than picking one silently — this applies as much to usage patterns
 (Stage 0.4) as it does to naming or component identification.
@@ -173,12 +203,37 @@ Read `references/generate-single.md` for wrapping one page, or
 (page A → click → modal or page B → ...).
 
 Both always:
+- check login state first and wait for the user to log in manually if needed (see
+  "Login handling" below) — never attempt to fill in credentials
 - read `.pom-generator/conventions.md` and `component-registry.md` first
+- generate code in the language/style detected during Stage 0.0 — never default to
+  TypeScript assumptions if the project's actual language is something else
 - consult the registry before creating any new element wrapper class
-- mark genuinely new patterns with `// REVIEW: new pattern, not in registry`
+- mark genuinely new patterns with a REVIEW comment in the target language's comment
+  syntax (e.g. `// REVIEW: ...` for TS, `# REVIEW: ...` for Python)
 - respect the action allowlist in `references/action-safety.md` (no destructive clicks,
   no form submits, unless the user explicitly asked for that exact action)
-- run `tsc --noEmit` (and the project's linter, if configured) before presenting the diff
+- run the type-check/lint tooling recorded in `conventions.md` (Stage 0.0/0.6) before
+  presenting the diff — never hardcode a specific tool; use what the project uses
+
+### Login handling
+
+The bundled Playwright MCP server runs **headed**, with its **default persistent
+browser profile** (no `--isolated`, no `--storage-state` flag). This means:
+
+- On navigating to a target page, check whether it looks logged in (absence of a login
+  form/redirect, presence of expected authenticated UI). If unclear on first use, ask
+  the user what "logged in" looks like for their app.
+- **If not logged in:** tell the user plainly that a browser window is open and they
+  should log in there, then let you know. **Stop and wait for their reply** — never
+  attempt to fill in or submit a login form yourself, even if credentials are visible
+  on the page (see `references/action-safety.md`). After they confirm, re-check before
+  proceeding.
+- Because the profile is persistent, this is normally a **one-time step per project** —
+  the login is remembered automatically across future sessions.
+- If the user's team instead needs a portable/shareable/CI-compatible session, that's
+  an opt-in alternative — see `references/team-auth-mode.md`. It is not the default and
+  should only be used if the user has explicitly set up that override.
 
 ## Stage 2 — Learn from correction
 
@@ -196,8 +251,10 @@ Never perform, without explicit per-instance permission from the user: form subm
 clicks on buttons/links whose accessible name suggests deletion, confirmation, or any
 data-mutating action (Delete, Remove, Confirm, Submit, Send, Pay, etc.), or any action
 that would trigger a non-idempotent network request. Navigation, hovering, and reading
-snapshots are always fine.
+snapshots are always fine. Never fill in or submit a login form on the user's behalf,
+even during the Stage 1 login-wait flow — always wait for the human to log in manually.
 
 Never read or reference credential files (`.env`, `storageState.json`, etc.) directly —
-this skill only needs the *path* to an already-authenticated browser session, provided
-by the user's Playwright MCP configuration, not the credentials themselves.
+if the user is on the opt-in team/CI auth mode (`references/team-auth-mode.md`), this
+skill only needs the *path* to an already-authenticated browser session, provided by
+the user's own MCP configuration, not the credentials themselves.

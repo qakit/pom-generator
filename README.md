@@ -86,14 +86,14 @@ Claude can actually open and read your app's pages.
 ## Install
 
 ```
-/plugin marketplace add YOUR_GH_USERNAME/pom-generator
-/plugin install pom-generator@pom-generator-marketplace
+/plugin marketplace add AndrewEgorov/pom-generator
+/plugin install pom-generator@pom-generator
 ```
 
 Alternatively, cross-harness install via the open `skills.sh` tooling (also works with
 non-Claude agents):
 ```bash
-npx skills add YOUR_GH_USERNAME/pom-generator
+npx skills add AndrewEgorov/pom-generator
 ```
 
 Full step-by-step setup (auth session, first explore run, day-to-day usage) is in
