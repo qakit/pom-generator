@@ -1,0 +1,17 @@
+{
+  "name": "pom-generator",
+  "owner": {
+    "name": "AndrewEgorov",
+    "url": "https://github.com/AndrewEgorov"
+  },
+  "description": "Playwright + TypeScript Page Object generator: explores your existing framework, generates wrappers that match it, and learns from your corrections.",
+  "plugins": [
+    {
+      "name": "pom-generator",
+      "source": "./plugins/pom-generator",
+      "description": "Generate and maintain Playwright POM wrappers matching your framework's own conventions.",
+      "category": "testing",
+      "tags": ["playwright", "typescript", "e2e", "page-object", "qa"]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "pom-generator",
+  "description": "Generates Playwright + TypeScript Page Object wrappers that match your existing framework's conventions, learned by exploring your codebase and refined from your manual corrections over time.",
+  "version": "1.0.0",
+  "author": {
+    "name": "AndrewEgorov"
+  },
+  "homepage": "https://github.com/qakit/pom-generator",
+  "repository": "https://github.com/qakit/pom-generator",
+  "license": "MIT",
+  "keywords": ["playwright", "typescript", "page-object", "testing", "qa", "sdet"],
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--storage-state=${CLAUDE_PROJECT_DIR}/auth/storageState.json",
+        "--viewport-size=1440,900"
+      ]
+    }
+  }
+}
+
