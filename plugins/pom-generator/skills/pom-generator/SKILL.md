@@ -208,9 +208,12 @@ Both always:
 - read `.pom-generator/conventions.md` and `component-registry.md` first
 - generate code in the language/style detected during Stage 0.0 — never default to
   TypeScript assumptions if the project's actual language is something else
-- apply `references/element-behavior-analysis.md` to understand each element's real
-  behavior (probe inputs, click buttons and observe, follow dialogs/dropdowns/tabs
-  recursively) rather than wrapping purely from a static snapshot
+- apply `references/element-behavior-analysis.md` as a **mandatory, blocking**
+  checklist: build a full inventory of interactive elements, actually probe every one
+  of them (type/click/select and observe), and recurse into anything a click reveals
+  (dialogs, cascading dropdowns) — never classify an element's behavior from its
+  static appearance alone, and never write the wrapper file until every inventoried
+  element has an observed outcome
 - consult the registry before creating any new element wrapper class
 - mark genuinely new patterns with a REVIEW comment in the target language's comment
   syntax (e.g. `// REVIEW: ...` for TS, `# REVIEW: ...` for Python)
@@ -259,7 +262,10 @@ that would trigger a non-idempotent network request. Navigation, hovering, and r
 snapshots are always fine. Never fill in or submit a login form on the user's behalf,
 even during the Stage 1 login-wait flow — always wait for the human to log in manually.
 
-Never read or reference credential files (`.env`, `storageState.json`, etc.) directly —
-if the user is on the opt-in team/CI auth mode (`references/team-auth-mode.md`), this
-skill only needs the *path* to an already-authenticated browser session, provided by
-the user's own MCP configuration, not the credentials themselves.
+**Absolute rule, no exceptions: never search for, read, or otherwise go looking for
+credentials of any kind** — `.env` files, config, secrets, tokens, password managers,
+browser storage — for any reason, including trying to determine or speed up login.
+Login state is read only from the rendered page; login itself is always a human action.
+If a prior stage's opt-in team/CI auth mode is configured (`references/team-auth-mode.md`),
+this skill only ever needs the *path* to an already-authenticated session, never its
+contents or the credentials that produced it.

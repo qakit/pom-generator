@@ -21,7 +21,9 @@ steps:
 Procedure:
 
 0. **Preflight — navigate and check login state.** Same check as step 0 in
-   `generate-single.md`: navigate to `start`, snapshot, determine if logged in. If not,
+   `generate-single.md`: navigate to `start`, snapshot, determine if logged in
+   **using only the rendered page — never by searching the filesystem or any file for
+   credentials, under any circumstance (see `action-safety.md`)**. If not logged in,
    tell the user a browser window is open for them to log in, and wait for their
    confirmation before proceeding. Thanks to the MCP server's persistent profile
    (no `--isolated`/`--storage-state` by default), this is a one-time thing per project.
@@ -38,10 +40,13 @@ Procedure:
       against the step's `expect`. If it doesn't match, stop and ask the user —
       don't guess.
    d. Generate the output file as a Page (new URL) or a Component (dialog/same-page
-      change), per `conventions.md` conventions for each — applying the full
-      `references/element-behavior-analysis.md` procedure to whatever this step
-      revealed (its own inputs, buttons, dropdowns, nested dialogs, etc.), not just a
-      surface wrap.
+      change), per `conventions.md` conventions for each — applying the **full
+      mandatory inventory-then-probe process** from
+      `references/element-behavior-analysis.md` to whatever this step revealed (its
+      own inputs, buttons, dropdowns, nested dialogs, etc.). Build the element
+      inventory for this step's revealed content and actually probe every item in it
+      before writing the wrapper — same rule as `generate-single.md` step 4, this is
+      not optional and not satisfied by a static read of the snapshot.
    e. Self-verify this step's generated wrapper (per `element-behavior-analysis.md`)
       before showing it.
    f. **Stop. Show the file. Wait for confirmation before the next step.**

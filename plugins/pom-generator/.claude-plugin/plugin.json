@@ -1,9 +1,10 @@
 {
   "name": "pom-generator",
   "description": "Generates Playwright + TypeScript Page Object wrappers that match your existing framework's conventions, learned by exploring your codebase and refined from your manual corrections over time.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": {
-    "name": "Andrew Egorov"
+    "name": "Andrey Egorov",
+    "url": "https://github.com/AndrewEgorov"
   },
   "homepage": "https://github.com/qakit/pom-generator",
   "repository": "https://github.com/qakit/pom-generator",
