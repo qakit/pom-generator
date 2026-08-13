@@ -28,7 +28,8 @@ Procedure:
 
 1. Read `.pom-generator/conventions.md` and `component-registry.md`.
 2. Open `start`, snapshot, generate the Page Object for the starting page (same
-   procedure as `generate-single.md`).
+   procedure as `generate-single.md`, including the full element-behavior-analysis
+   pass and self-verification step).
 3. **Stop. Show the file. Wait for explicit confirmation before continuing.**
 4. For each step in order:
    a. Locate the described element in the current snapshot, click it via MCP.
@@ -37,8 +38,13 @@ Procedure:
       against the step's `expect`. If it doesn't match, stop and ask the user —
       don't guess.
    d. Generate the output file as a Page (new URL) or a Component (dialog/same-page
-      change), per `conventions.md` conventions for each.
-   e. **Stop. Show the file. Wait for confirmation before the next step.**
+      change), per `conventions.md` conventions for each — applying the full
+      `references/element-behavior-analysis.md` procedure to whatever this step
+      revealed (its own inputs, buttons, dropdowns, nested dialogs, etc.), not just a
+      surface wrap.
+   e. Self-verify this step's generated wrapper (per `element-behavior-analysis.md`)
+      before showing it.
+   f. **Stop. Show the file. Wait for confirmation before the next step.**
 5. After all steps: summarize created files and anything flagged `// REVIEW`.
 
 Never combine steps without a checkpoint between them — the pause is what lets the user

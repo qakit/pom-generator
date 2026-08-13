@@ -208,11 +208,16 @@ Both always:
 - read `.pom-generator/conventions.md` and `component-registry.md` first
 - generate code in the language/style detected during Stage 0.0 — never default to
   TypeScript assumptions if the project's actual language is something else
+- apply `references/element-behavior-analysis.md` to understand each element's real
+  behavior (probe inputs, click buttons and observe, follow dialogs/dropdowns/tabs
+  recursively) rather than wrapping purely from a static snapshot
 - consult the registry before creating any new element wrapper class
 - mark genuinely new patterns with a REVIEW comment in the target language's comment
   syntax (e.g. `// REVIEW: ...` for TS, `# REVIEW: ...` for Python)
 - respect the action allowlist in `references/action-safety.md` (no destructive clicks,
   no form submits, unless the user explicitly asked for that exact action)
+- self-verify generated wrappers against the live page (see
+  `element-behavior-analysis.md`) before presenting
 - run the type-check/lint tooling recorded in `conventions.md` (Stage 0.0/0.6) before
   presenting the diff — never hardcode a specific tool; use what the project uses
 

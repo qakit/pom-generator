@@ -27,17 +27,25 @@
 2. Take a snapshot of the target page (already navigated in step 0).
 3. Pick 1-2 existing Page Object files most similar in domain to the target page
    (form-heavy, table-heavy, dashboard, etc.) as style reference — read them.
-4. For every distinct interactive/custom element in the snapshot, check it against
-   `component-registry.md` before deciding how to wrap it:
+4. For every distinct interactive/custom element in the snapshot, apply the analysis
+   procedures in `references/element-behavior-analysis.md` (input classification via
+   probing, button click-and-observe, dialog/dropdown/tab recursive analysis, etc.)
+   before deciding how to wrap it. Then check the result against
+   `component-registry.md`:
    - Matches an existing entry → use that class.
    - Doesn't match anything → create a new wrapper following `conventions.md`
-     structure/naming rules, and mark it `// REVIEW: new pattern, not in registry`.
+     structure/naming rules and the architecture philosophy in
+     `element-behavior-analysis.md` (components stay separate, mirror real UI
+     nesting), and mark it `// REVIEW: new pattern, not in registry`.
 5. Write the new Page Object file to the correct location per `conventions.md`'s
    folder structure. Add its export to the barrel/index file if one is used.
-6. Run the type-check/lint tooling detected in `conventions.md` (Stage 0.0/0.6) on
+6. **Self-verify.** Follow the "Self-verification" procedure in
+   `element-behavior-analysis.md` — exercise the generated getters/methods against the
+   live page before presenting, and fix anything that doesn't actually resolve/work.
+7. Run the type-check/lint tooling detected in `conventions.md` (Stage 0.0/0.6) on
    the new file(s). Fix any errors before presenting.
-7. Show the diff and a short summary: which elements reused existing wrapper classes,
-   which are new/REVIEW-flagged.
+8. Show the diff and a short summary: which elements reused existing wrapper classes,
+   which are new/REVIEW-flagged, and anything the self-verify step caught and fixed.
 
 Respect `action-safety.md` at every step — only navigate, hover, and snapshot unless the
 user explicitly asked you to perform a specific other action.
