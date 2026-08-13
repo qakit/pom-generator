@@ -34,7 +34,10 @@
    (form-heavy, table-heavy, dashboard, etc.) as style reference — read them.
 4. **Element behavior analysis — mandatory, blocking.** Read
    `references/element-behavior-analysis.md` in full before doing anything else in
-   this step; do not proceed from memory or from a prior read.
+   this step; do not proceed from memory or from a prior read. The analysis follows
+   the structure in that file: **Part 1** (general rules you follow for every element),
+   **Part 2** (the per-element procedure: visual ID → DOM inspection → behavioral probe),
+   **Part 3** (per-type probes for buttons, inputs, dialogs, etc.).
    a. Build an explicit inventory of every distinct interactive/custom element visible
       in the snapshot (every input, button, icon-as-button, dropdown, tab, and any
       container that groups them). List them before probing any of them — this list
@@ -64,9 +67,10 @@
       manually — write the full inventory out as a literal checklist in your own
       working notes before starting, and don't let the list shrink from view as you
       go, e.g. by only mentally tracking "what's left."
-   b. For **every single item** in that inventory, apply the matching procedure from
-      `element-behavior-analysis.md` — actually perform the probing action (type into
-      the input, click the button, select the dropdown value) and observe the real
+   b. For **every single item** in that inventory, follow the Part 2 procedure from
+      `element-behavior-analysis.md` (visual ID → DOM inspection → find the matching
+      per-type probe in Part 3). Actually perform the probing action (type into the
+      input, click the button, select the dropdown value) and observe the real
       result. Do not classify an element's behavior from its label, name, or general
       appearance alone — probing is how this skill exists, skipping it defeats the
       point of using it. An element only counts as "analyzed" once you've actually
@@ -98,7 +102,7 @@
       value, not just opening and closing it. A checkbox requires actually toggling
       it, not just noting it exists. If you find yourself writing a conclusion like "it
       doesn't do X" based on an action lighter than what that element type requires
-      (see `element-behavior-analysis.md` for the exact required action per type),
+      (see Part 3 of `element-behavior-analysis.md` for the exact required action per type),
       that conclusion is unearned — go back and perform the actual required action.
    c. **Opening a dialog is not a stopping point or something to defer — it's a
       trigger to recurse, and the task-tracking discipline from step a2 extends here

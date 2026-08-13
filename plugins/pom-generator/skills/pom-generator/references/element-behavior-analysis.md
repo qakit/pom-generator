@@ -39,6 +39,13 @@ wouldn't flatten a `FilterPanel` into loose props on its parent. Concretely:
   widget entries) before generating — a filter panel or toolbar pattern already seen
   on another page should be reused/extended, not redefined from scratch.
 
+---
+
+# Part 1: General Analysis Rules
+
+These rules apply to every element, every probe, every interaction. They govern HOW
+you work — not WHAT you do with specific element types.
+
 ## Traversal order
 
 Walk the page systematically, top to bottom, left to right, the way a person visually
@@ -69,7 +76,7 @@ subsequent actions).
    recovery — not a failure.
 
 **When a probe opens a dialog (new analysis target):**
-- Analyze the dialog fully (see "Dialogs opened by a button" below).
+- Analyze the dialog fully (see "Dialogs opened by a button" in Part 3).
 - After finishing the dialog analysis, **reload the initial page URL** to return to
   clean state. Do NOT try to "close the dialog and continue" — reloading guarantees
   a consistent starting point for the next probe.
@@ -88,7 +95,7 @@ from the component's root element** — never reach further up the DOM tree than
 **Never write a selector that starts from the page level and drills deep into a
 sub-component.** Each component class already receives a scoped `Locator` (its own
 root). All getters inside that class should be relative to `this.element` — the
-selector path is `this.element → child → grandchild at most`.
+selector path is `this.element -> child -> grandchild at most`.
 
 This rule exists because:
 - Deep page-level selectors are fragile — they break when the component is moved or
@@ -98,14 +105,63 @@ This rule exists because:
 - They correctly express the architectural intent: a component knows its own internals,
   not where it sits in the page
 
-## Per-element-type analysis
+---
 
-For each element encountered during the traversal, apply the relevant procedure below.
-All probing actions here are non-destructive info-gathering and are allowed under
-`action-safety.md` — but the caution about actual data-mutating actions (see the
-dialog-actions section below) still applies fully.
+# Part 2: Per-Element Analysis Procedure
 
-### Text inputs
+This is the repeatable procedure for each element in the inventory. Follow these
+steps **for every element**, in order, before moving to the next one.
+
+## Step 1: Visual identification
+
+Before probing an element's behavior, understand what it is visually.
+
+1. **Take a screenshot** of the current page state (or capture the current region of
+   the page around the element).
+2. **Show the screenshot to the model** (read it as an image) and ask: what is this
+   element? What does it look like? Is it an input field, a button, a toggle, an icon
+   that acts as a button, a collapsible group header?
+3. **Compare the visual impression with the DOM structure.** Does the element look
+   like a text input but is actually a combobox? Does a div that "looks like a button"
+   have `role="button"` or an `onClick` handler? **Visual appearance and DOM structure
+   together determine the element type — neither alone is sufficient.**
+4. **Record the classification** (e.g. "autocomplete combobox", "date range picker",
+   "filter chip button", "collapsible checkbox group header").
+
+**This visual step catches the mistakes that pure DOM analysis can't.** An icon that
+"looks like expand/collapse" might actually open a dialog — only a real click will
+confirm, but the visual analysis gives you a hypothesis to test. Conversely, a
+`<button>` tag might behave as a filter toggle, not a navigation — only observing the
+outcome tells you.
+
+## Step 2: DOM inspection
+
+Read the element's markup from the snapshot:
+- Tag name, attributes, `data-aid`/`data-testid`, `role`, `aria-*` attributes
+- Immediate parent and its identifying attributes
+- Child elements (icons, labels, nested inputs)
+- Any CSS class fragments that suggest a component framework pattern
+
+## Step 3: Behavioral probe
+
+Now that you know what the element is and how it's structured, **find its matching
+procedure in Part 3 below** and execute it. The per-type section tells you:
+- What action to perform (type, click, select, toggle)
+- What to observe (dropdown appearance, navigation, dialog opening, data filtering)
+- What dynamic elements to look for
+- How to reset state afterward
+
+If there's no specific per-type section for this element, follow the default probe:
+**interact with it the way a user would, observe what changed, reset state.**
+
+---
+
+# Part 3: Per-Type Behavioral Probes
+
+Use these when the element type from Part 2 matches. Each procedure tells you what
+to do and what to watch for.
+
+## Text inputs
 
 1. First, try to infer intent from static signals: label text, placeholder, name/id
    attributes, `aria-label` (e.g. "employees", "search query" style names).
@@ -118,10 +174,9 @@ dialog-actions section below) still applies fully.
 3. Observe what happens:
    - A new dropdown/listbox/suggestion-list appears → this is an autocomplete/combobox
      pattern. **The dropdown itself must be fully analyzed and wrapped as its own
-     component** (see "Dialogs opened by a button" — the same recursion rule applies:
-     build a sub-inventory of the dropdown's elements, probe them, generate a
-     component file). Check `component-registry.md` for a matching wrapper (e.g.
-     `AutocompleteInput`); if none exists, this is a strong candidate for a new
+     component** (build a sub-inventory of the dropdown's elements, probe them,
+     generate a component file). Check `component-registry.md` for a matching wrapper
+     (e.g. `AutocompleteInput`); if none exists, this is a strong candidate for a new
      registry entry, not just a one-off getter.
    - A network request fires and the page/results update in place, with no dropdown →
      this is a live-search/filter-as-you-type input, not an autocomplete. Wrap it
@@ -138,7 +193,7 @@ dialog-actions section below) still applies fully.
    clear programmatically) — don't leave test data entered in the live page.
    **Confirm the input is back to its empty state before moving to the next element.**
 
-### Date / date-range inputs
+## Date / date-range inputs
 
 1. Click into it and observe what appears — inline calendar, a popover/dialog date
    picker, dual start/end fields, a native date input, etc.
@@ -154,7 +209,7 @@ dialog-actions section below) still applies fully.
    page is back to baseline before moving to the next element. An open date picker
    will block clicks on elements behind it.
 
-### Buttons
+## Buttons
 
 1. Click it.
 2. Watch both the network (any request fired) and the page (any visible change:
@@ -186,7 +241,7 @@ after, compare the DOM. If you wrote "expands/collapses" for a button without ac
 clicking it and verifying that no dialog appeared, that classification is wrong —
 go back and click it.
 
-### Icon / SVG / image / anchor acting as a button
+## Icon / SVG / image / anchor acting as a button
 
 Some elements are semantically buttons but not a `<button>` tag — an `<svg>` or `<a>`
 with a class/id/aria-role suggesting button behavior (e.g. class contains `-btn`,
@@ -195,12 +250,13 @@ navigation target). Detect these by attribute inspection, not just tag name, and
 identified, run the exact same click-and-observe procedure as "Buttons" above. Don't
 let tag type alone determine whether something is treated as a clickable action.
 
-### Dialogs opened by a button
+## Dialogs opened by a button
 
 1. After a click opens a dialog (no URL change, new `role="dialog"` or equivalent
    container appears), treat this the same as wrapping a page: analyze the dialog's
    full internal structure — buttons, inputs, dropdowns, tabs, everything — using
-   these same per-element-type rules recursively.
+   the Part 2 procedure recursively (visual identification → DOM inspection →
+   behavioral probe for each element inside).
 2. If no dialog/modal wrapper class exists yet for this shape, create one and register
    it in `component-registry.md` (see the existing `Modal` entry as a starting point —
    extend or create a more specific one if this dialog's structure warrants it).
@@ -213,7 +269,7 @@ let tag type alone determine whether something is treated as a clickable action.
    should close it — verify with a snapshot. If the dialog is still visible after
    your close attempt, reload the page URL rather than trying another close method.
 
-### Buttons that change filtering/results
+## Buttons that change filtering/results
 
 If clicking a button changes the visible result set (detect via a network request
 plus a before/after snapshot diff, not either alone — a request can fire without
@@ -222,7 +278,7 @@ filter/action control, not a navigation. Wrap it as an action method that reflec
 what it actually does to the page state (e.g. `applyStatusFilter('Active')`), and note
 in the wrapper what part of the page it affects, if that's discoverable.
 
-### Dropdowns / selects
+## Dropdowns / selects
 
 1. Select a value from it.
 2. Observe whether anything else on the page changes as a result — another dropdown
@@ -239,7 +295,7 @@ in the wrapper what part of the page it affects, if that's discoverable.
    A selected value may filter data or change what elements are visible, affecting all
    subsequent probes.
 
-### Checkboxes / toggles
+## Checkboxes / toggles
 
 1. Click to toggle the checkbox.
 2. Observe the effect — does it filter a table, enable/disable other elements, show a
@@ -250,7 +306,7 @@ in the wrapper what part of the page it affects, if that's discoverable.
    filters data will affect every subsequent probe on this page. If toggling back
    doesn't work (overlay blocks the click), reload the page.
 
-### Dialogs with Save / Cancel / Apply / Filter actions
+## Dialogs with Save / Cancel / Apply / Filter actions
 
 If a dialog contains actions like Save, Apply, or Filter, it likely persists a setting
 or applies a filter that changes the page's state after closing. Understanding its
@@ -260,7 +316,7 @@ action — per `action-safety.md`, do this only with explicit permission for tha
 specific instance; prefer Cancel/Escape to close after you've understood the
 structure, unless the user has explicitly asked you to verify the save behavior too.
 
-### Tab-like elements
+## Tab-like elements
 
 1. Click it once, observe the UI switching to that tab's content.
 2. Click it again (or click away and back) — note whether re-clicking an already-
@@ -274,7 +330,9 @@ structure, unless the user has explicitly asked you to verify the save behavior 
    across probes — leaving a different tab active will change what elements are
    visible during subsequent analysis.
 
-## Self-verification: use the framework you just generated to test itself
+---
+
+# Part 4: Self-Verification
 
 After generating wrapper classes for a page (or a meaningful chunk of one), don't stop
 at "the code compiles." Actually exercise it:
