@@ -15,6 +15,19 @@ wouldn't flatten a `FilterPanel` into loose props on its parent. Concretely:
 
 - A container with a clear semantic role (filter bar, toolbar, sidebar, card) becomes
   its own Component class, not a flat list of getters on the parent Page.
+- **Grouping signals aren't limited to `data-testid`/`data-aid`/`role`.** A shared CSS
+  module class fragment on a container (e.g. `div[class*='_checkboxes_']`,
+  `div[class*='_panel_']`, any generated/hashed class that still shares a readable
+  stem across related elements) is just as strong a signal that everything inside it
+  belongs to one component — don't wait for an explicit semantic attribute before
+  extracting a container into its own class. If several sibling elements share a
+  parent with any consistent identifying signal (attribute, class stem, or even
+  consistent structural position), treat that as the component boundary rather than
+  flattening them onto the parent Page as individual getters.
+- When in doubt whether a container "counts" as its own component: if you can name
+  what the container *is* in one or two words (a filter panel, a toolbar, a card), it
+  should be a component — that's usually a stronger signal than the specific markup
+  used to find it.
 - Nesting should mirror actual UI nesting: a dialog's own filter panel is a component
   inside the dialog component, not hoisted flat onto the Page.
 - Default to this Page Object + Page Component structure unless `conventions.md`
@@ -22,6 +35,9 @@ wouldn't flatten a `FilterPanel` into loose props on its parent. Concretely:
   codebase — e.g. a fluent/chaining call style, or a different composition approach.
   Established project convention always wins over this default; this default only
   fills gaps Explore didn't cover.
+- Check `component-registry.md` for container-level entries (not just individual
+  widget entries) before generating — a filter panel or toolbar pattern already seen
+  on another page should be reused/extended, not redefined from scratch.
 
 ## Traversal order
 
