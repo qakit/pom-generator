@@ -91,6 +91,16 @@ dialog-actions section below) still applies fully.
    pattern applies and, in the flow/multi-step context, what "output" it should be
    treated as (see the specific cases below: dialog, filter, tab).
 
+**Never infer a button's behavior from a different button, even one that looks
+similar or sits nearby.** A "Create X" button, an "Open X" button, and a row's own
+action button can each do something completely different — one might navigate, one
+might open a same-page dialog, one might do neither. If a page has a "more actions"
+icon-button that was already clicked and found to navigate, that tells you nothing
+about what a separately-labeled "Create" button does — click it too, independently.
+Recording an untested button's outcome as if it matched a tested one is the single
+most likely way this analysis silently produces wrong wrappers, because it looks
+complete in the summary while actually being unverified.
+
 ### Icon / SVG / image / anchor acting as a button
 
 Some elements are semantically buttons but not a `<button>` tag — an `<svg>` or `<a>`

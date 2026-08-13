@@ -47,6 +47,18 @@
       point of using it. An element only counts as "analyzed" once you've actually
       interacted with it and recorded what happened, not once you've formed an
       opinion about what it probably does.
+   b2. **"Observed" is not a valid outcome for any actionable element** — any button,
+      checkbox, link, toggle, tab, or icon-as-button. "Observed" only ever means "I saw
+      this static/decorative element in the snapshot and it needs no interaction"
+      (e.g. a text label, a status badge with no click handler). If an element can be
+      clicked, typed into, or selected, its recorded outcome must be a real action —
+      Typed/Clicked/Selected — never "Observed", and never inferred from what a
+      *different* element on the page turned out to do. Two buttons with similar
+      labels or in similar positions can behave completely differently — a button
+      labeled "Create X" is not guaranteed to behave like a button labeled "Open X" or
+      like a row's action button elsewhere on the same page, even if earlier probing
+      revealed that other button's behavior. Every actionable element gets its own
+      real, independent probe — no exceptions, no analogies.
    c. **Opening a dialog is not a stopping point or something to defer — it's a
       trigger to recurse.** If a button opens a dialog, analyze the dialog's full
       contents using this same inventory-then-probe process before returning to the
@@ -55,8 +67,12 @@
       dialog structure earlier in this same run.
    d. Before moving to step 5, do a pass over your inventory from 4a and confirm every
       item has an actual observed result next to it (probed → outcome), not a blank or
-      an inference. Any item still unprobed at this point must be probed now, not
-      deferred to "a future pass" — there is no later step that revisits this.
+      an inference. **Specifically check the Probe/action column of every actionable
+      row — if it says "Observed" or is otherwise not a real action verb
+      (Typed/Clicked/Selected/Hovered), that item is not actually done: go back and
+      probe it now, before writing any code.** There is no later step that revisits
+      this — an incomplete inventory presented as complete is worse than an honest
+      "still probing" state, because the person reading the summary will trust it.
    e. Then check each analyzed element against `component-registry.md`:
    - Matches an existing entry → use that class.
    - Doesn't match anything → create a new wrapper following `conventions.md`
@@ -72,8 +88,11 @@
    the new file(s). Fix any errors before presenting.
 8. Show the diff and a short summary: which elements reused existing wrapper classes,
    which are new/REVIEW-flagged, and anything the self-verify step caught and fixed.
-   Include the element inventory from step 4a with each item's observed outcome, so
-   it's visible that every element was actually probed rather than assumed.
+   Include the element inventory from step 4a with each item's observed outcome, using
+   a real action verb (Typed/Clicked/Selected/Hovered) for every actionable element —
+   if any row in this final table says "Observed" for something clickable, that is a
+   sign the analysis is incomplete and step 4 must be revisited before presenting,
+   not a cosmetic detail to fix later.
 
 Respect `action-safety.md` at every step — only navigate, hover, and snapshot unless the
 user explicitly asked you to perform a specific other action.

@@ -12,6 +12,41 @@ Playwright bindings, by detecting what the project actually uses rather than ass
 
 This skill has three stages. Figure out which one the user needs and jump in.
 
+## Locating this skill's own files (read this before anything else)
+
+Every `references/*.md` path mentioned anywhere in this skill (in this file or in any
+command) is **relative to this skill's own installation folder — the same directory
+this `SKILL.md` file itself is in — never relative to the current project/repo you're
+working in.** For example, if this file's own path is
+`.../skills/pom-generator/SKILL.md`, then `references/generate-single.md` means
+`.../skills/pom-generator/references/generate-single.md`.
+
+Do **not** use a generic project-wide search tool (glob/grep across the current
+working directory) to find these files — that searches only the current workspace and
+will report them as missing even though they exist elsewhere on disk. This matters
+especially when the skill is installed at the **user level**
+(`~/.claude/skills/pom-generator/...`) rather than inside the current project — that
+location is outside the workspace your file-search tools are scoped to.
+
+**How to resolve the real path:**
+1. If you know the absolute path this `SKILL.md` was loaded from, build the reference
+   path from that same base directory (swap `SKILL.md` for `references/<file>`).
+2. If you don't know it, use a shell command (not a workspace-scoped search) to find
+   it directly — e.g. `ls ~/.claude/skills/pom-generator/references/` on macOS/Linux,
+   or check `%USERPROFILE%\.claude\skills\pom-generator\references\` on Windows. A
+   project-level install at `.claude/skills/pom-generator/` in the current repo (if
+   present) takes priority and is directly reachable by normal search — check there
+   first if unsure which install is active.
+3. Once you have the real path, `Read` it directly. Only report the file as
+   unavailable after actually trying a shell-based lookup — a workspace-scoped glob
+   returning nothing is not sufficient evidence the file doesn't exist.
+
+**Because path resolution can go wrong, the most safety-critical rules are repeated
+directly in this file below (see "Safety") so they apply even if a reference file
+can't be located** — but the detailed procedures in the reference files should still
+always be sought out and read, not skipped just because this file's summary exists.
+
+
 ## Stage 0 — Explore (bootstrap or refresh full project understanding)
 
 Run when: the skill has never been used in this repo (no `.pom-generator/conventions.md`
@@ -223,6 +258,31 @@ Both always:
   `element-behavior-analysis.md`) before presenting
 - run the type-check/lint tooling recorded in `conventions.md` (Stage 0.0/0.6) before
   presenting the diff — never hardcode a specific tool; use what the project uses
+
+### Minimum inline checklist (fallback if `element-behavior-analysis.md` can't be found)
+
+The reference file has full detail and should always be sought — but if path
+resolution genuinely fails, this condensed version is the non-negotiable minimum,
+not a replacement for trying to locate the full file:
+
+1. List every interactive element in the snapshot before touching any of them —
+   inputs, buttons, icon/svg-as-button, dropdowns, tabs, containers grouping them.
+2. Actually interact with each one (type into inputs, click buttons, select dropdown
+   values) and record the real observed result — never infer behavior from label/name
+   alone, and never infer one button's behavior from a different button's tested
+   behavior, even if they look similar or sit near each other. "Observed" (seen but
+   not interacted with) is only valid for genuinely static/non-clickable elements —
+   every button, checkbox, link, toggle, and tab must show a real action
+   (Typed/Clicked/Selected), never "Observed", in the final inventory.
+3. If a click opens a dialog: analyze the dialog's full contents the same way,
+   recursively, before returning to the parent list. Do not skip this because it seems
+   slower — this is the point of the exercise, not an optional extra.
+4. If a dropdown selection changes other elements, note the dependency and analyze
+   whatever it revealed the same way.
+5. Treat any container with a shared grouping signal (attribute, CSS class stem,
+   `data-*` prefix, or just "this is clearly one visual unit") as its own component
+   class — never flatten it into loose getters on the parent.
+6. Don't write the final file until every item from step 1 has a real recorded outcome.
 
 ### Login handling
 
