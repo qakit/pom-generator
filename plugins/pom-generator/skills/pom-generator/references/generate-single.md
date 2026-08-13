@@ -8,9 +8,12 @@
    - Determine whether the page looks logged in **using only the rendered page** —
      absence of a login form/redirect, presence of expected authenticated UI (nav bar,
      user menu, etc — infer from the snapshot; ask the user what "logged in" looks
-     like on first use if unclear). **Never search the filesystem, grep, or read any
+     like on first use if unclear). **This includes being redirected to a different
+     domain entirely (SSO/ADFS/OAuth providers, etc.) — a redirect to any login page,
+     on any domain, is the same "not logged in" case, handled the same way below.**
+     Never search the filesystem, grep, or read any
      file (`.env`, config, credentials, secrets, etc.) to determine or obtain login
-     info — this is an absolute rule, see `action-safety.md`.**
+     info — this is an absolute rule, see `action-safety.md`.
    - **If not logged in:** tell the user plainly, e.g. "This page isn't logged in — a
      browser window should be open. Please log in there, then tell me when you're done."
      Then **stop and wait for the user's next message** — do not attempt to fill in any
