@@ -1,0 +1,20 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Node — the validator is dependency-free, but keep these out if anyone installs
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Plugin output, if the plugin is ever exercised inside this repo.
+# In a real target repo the analysis markdown is meant to be committed; only the
+# screenshots are excluded, since they may contain real application data.
+.pom-generator/analysis/**/screens/

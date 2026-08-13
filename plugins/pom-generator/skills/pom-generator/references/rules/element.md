@@ -1,0 +1,141 @@
+# Rules — Element scope
+
+**Invariants**, not a procedure. These hold in every phase. When a phase document and this file
+seem to disagree, this file is describing what must be true and the phase document is describing
+when to do it; both apply.
+
+Scope: one element — a single interactive or informational leaf (`01-glossary.md`).
+
+---
+
+## E1. Classification requires visual and DOM agreement
+
+Neither alone is sufficient.
+
+- **DOM alone** misses that a `<div>` with no role is styled and behaves as a button, and that a
+  `<button>` is actually a filter toggle rather than an action.
+- **Visual alone** misses that a control that looks like a text box is a combobox, and that two
+  identical-looking chips are one filter and one static badge.
+
+So: write `Visual:` from the screenshot *first*, before reading the DOM, then write `DOM:`, then
+reconcile. When they disagree, the disagreement is the finding — record it in `Notes:` and let the
+behavioural probe settle it. A quiet resolution in favour of whichever was read last is how a
+wrong type gets locked in.
+
+`browser_evaluate` settles most of these: a computed `cursor: pointer`, an attached handler, or a
+class stem containing `btn` tells you what the markup does not say.
+
+## E2. The probe must match the element type
+
+A lesser action never substitutes for the required one.
+
+| Type | Required | Not sufficient |
+|---|---|---|
+| Text input | typing | clicking (proves focusable only) |
+| Dropdown | selecting a value | opening and closing |
+| Checkbox | toggling | noting that it exists |
+| Multi-select | selecting two, removing one | selecting one |
+| Sortable header | two clicks | one |
+| Date range | both ends | the start date |
+| Split button | both halves separately | either half |
+
+If you find yourself writing a conclusion like "it doesn't do X" on the strength of an action
+lighter than the type requires, that conclusion is unearned. The required action per type is the
+`**Required probe:**` line of the catalog entry.
+
+## E3. Behaviour is never inferred from another element
+
+Not from a sibling. Not from a similar label. Not from a control in the same toolbar. Not from
+the same-looking button on a different row.
+
+Two buttons that look alike routinely differ: one navigates, one opens a dialog, one does neither.
+An analysis that carries a tested element's outcome across to an untested one *looks complete in
+the summary* while being unverified, which makes it worse than an obvious gap.
+
+The one legitimate exception is a repeated collection item (`collections/*`): probe one instance
+thoroughly, confirm the others share its structure, and **say in `Observed:` that this is what you
+did**. Silent extrapolation is not the same as declared extrapolation.
+
+## E4. "Observed" is not an outcome for anything actionable
+
+`Observed` means "I saw this static element and it needs no interaction." It is legal only for
+`Kind: static`.
+
+Every button, input, checkbox, link, toggle, tab, icon-button and option records a real action
+verb (`01-glossary.md`) and a real result. Validator rule **V011** rejects the alternative.
+
+Classifying something as `static` to avoid probing it is the loophole this rule closes: if it has
+a role, a handler, a cursor change, or a hover state, it is `actionable`.
+
+## E5. Every element ends in a terminal state
+
+`pending` is not an ending. Each element finishes as `probed`, `static-confirmed`, or
+`blocked-<reason>` — and `blocked-` requires a stated reason and surfaces as a warning so the gap
+is visible rather than absent (V010, W001).
+
+An element you could not probe is a legitimate outcome. An element you forgot is not, and the
+queue on disk is what makes the difference detectable.
+
+## E6. Clean state between probes
+
+Each probe starts from baseline. Probing element B while element A's dropdown is still open gets
+B's click intercepted and B misclassified — and then the wrong wrapper is written for an element
+nobody realised was never reached.
+
+After each probe: undo what changed, verify with a snapshot, and record how in `Reset:`.
+**If state is ambiguous or an overlay will not dismiss, navigate to the page URL again.** That is
+the correct recovery, not a workaround, and it is always available.
+
+## E7. Selector proximity
+
+Every getter uses the **shortest path from its own component's root**.
+
+1. The element carries a `data-testid`/`data-aid` → use it directly.
+2. Its immediate parent carries one → locate the parent, then reach the child by role or position.
+3. Neither → go up one more level. **No further.**
+
+Inside a component class, every locator is relative to `this.element`. A component receives its own
+scoped root; it knows its internals, not where it sits in the page.
+
+**A `page.`-rooted selector inside a component class is a defect**, not a style preference
+(V040, V041). It breaks the moment the component is moved or reused, it searches the whole
+document, and it silently couples the component to one page.
+
+Page-level elements that genuinely belong to no component use `this.page`.
+
+## E8. Locators are cross-checked, never delegated
+
+Author the locator from `conventions.md`'s priority order, then ask
+`browser_generate_locator` for Playwright's opinion and record it in `Locator-pw`.
+
+They serve different purposes: yours respects project convention and component scoping;
+Playwright's is canonical and page-rooted. **Disagreement is information, not an error to
+resolve quietly** — it usually means either your selector reaches deeper than it needs to, or the
+element is genuinely ambiguous. Record it as `Locator-agree: no — <reason>` (V042) and let it
+surface as a warning.
+
+Never invent a `Locator-pw` value. If the tool is unavailable, say so in `Meta.Tools-degraded`.
+
+## E9. Naming comes from behaviour, not from appearance
+
+The method name describes what the element *does*, established by the probe:
+
+- a button labelled "Go" that applies filters → `applyFilters()`, not `clickGo()`
+- a gear icon that opens column settings → `openColumnSettings()`, not `clickGearIcon()`
+- a text input that filters a table live → `search(text)`, not `fillSearchBox(text)`
+
+An icon-button's name usually comes from its tooltip, which is why hovering is part of its probe.
+
+Casing and prefixes follow `conventions.md` — camelCase for TS/JS, snake_case for Python, plus
+whatever getter/action prefixes the project already uses. The project's convention always wins
+over the shapes suggested in the catalog.
+
+## E10. State-dependent elements are elements
+
+A clear (X) icon that exists only once text is typed, a validation message, a character counter, a
+"no results" state, a spinner — each is a real element with its own ID, discovered during probing
+and appended to the queue with `Status: pending`.
+
+They are the most commonly missed elements in the entire process, because they are invisible in
+the baseline snapshot that the inventory was built from. The probe is where they surface; the
+queue is what makes sure they are then probed themselves.

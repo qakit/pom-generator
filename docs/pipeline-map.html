@@ -1,0 +1,942 @@
+<meta charset="utf-8">
+<title>pom-generator — which file is used when</title>
+<!--
+  Source of truth for the published artifact:
+  https://claude.ai/code/artifact/e3bab946-8bc5-4132-84ee-610495c34375
+
+  Deliberately a fragment (no doctype/html/head/body): the artifact host wraps it at
+  publish time. Browsers hoist the meta and title, so it also opens standalone from disk.
+  Print to PDF from the browser — there is a @media print block at the end of the styles.
+-->
+
+
+<style>
+  /* ---------- tokens: complete light palette on bare :root ---------- */
+  :root {
+    --ground:      #F3F6F8;
+    --surface:     #FFFFFF;
+    --surface-2:   #E9EEF2;
+    --ink:         #0F171D;
+    --ink-2:       #45545F;
+    --ink-3:       #78878F;
+    --line:        #D8E0E6;
+    --line-2:      #BCC8D1;
+
+    --accent:      #B0521C;
+    --accent-ink:  #8C3F13;
+    --accent-soft: #FAEDE4;
+    --accent-line: #DBA985;
+
+    --k-proc:      #2C6B8E;
+    --k-rule:      #6A5691;
+    --k-rule-soft: #EAE5F2;
+    --k-look:      #256F62;
+    --k-found:     #56666F;
+    --k-art:       #B0521C;
+
+    --stop:        #9E2B2B;
+    --go:          #2A6F49;
+
+    --on-fill:     #FFFFFF;
+
+    --shadow: 0 1px 2px rgba(15, 23, 29, .05), 0 8px 24px -12px rgba(15, 23, 29, .18);
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0C1317;
+      --surface:     #131C22;
+      --surface-2:   #1B262D;
+      --ink:         #E7EEF2;
+      --ink-2:       #A2B1BB;
+      --ink-3:       #74858F;
+      --line:        #24313A;
+      --line-2:      #3A4B56;
+
+      --accent:      #E4884A;
+      --accent-ink:  #F0A472;
+      --accent-soft: #2B1A0F;
+      --accent-line: #7A4A26;
+
+      --k-proc:      #6DA9CD;
+      --k-rule:      #A491C8;
+      --k-rule-soft: #221D2E;
+      --k-look:      #57B09D;
+      --k-found:     #8A9AA5;
+      --k-art:       #E4884A;
+
+      --stop:        #DE7B7B;
+      --go:          #6CBE8D;
+
+      --on-fill:     #0C1317;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0C1317;
+    --surface:     #131C22;
+    --surface-2:   #1B262D;
+    --ink:         #E7EEF2;
+    --ink-2:       #A2B1BB;
+    --ink-3:       #74858F;
+    --line:        #24313A;
+    --line-2:      #3A4B56;
+
+    --accent:      #E4884A;
+    --accent-ink:  #F0A472;
+    --accent-soft: #2B1A0F;
+    --accent-line: #7A4A26;
+
+    --k-proc:      #6DA9CD;
+    --k-rule:      #A491C8;
+    --k-rule-soft: #221D2E;
+    --k-look:      #57B09D;
+    --k-found:     #8A9AA5;
+    --k-art:       #E4884A;
+
+    --stop:        #DE7B7B;
+    --go:          #6CBE8D;
+
+    --on-fill:     #0C1317;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+  }
+
+  /* ---------- base ---------- */
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  .prose { max-width: 68ch; }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -.015em;
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(21px, 2.6vw, 27px);
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+
+  h3 { font-size: 17px; font-weight: 650; letter-spacing: -.005em; }
+
+  p { margin: 0; color: var(--ink-2); }
+  .prose h2 + p { margin-top: 10px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 10px;
+  }
+
+  code, .mono { font-family: var(--mono); font-size: .875em; }
+
+  em { color: var(--ink); font-style: italic; }
+
+  /* ---------- header ---------- */
+  header { display: flex; flex-direction: column; gap: 18px; }
+  .lede { font-size: 18px; line-height: 1.55; max-width: 62ch; }
+
+  .meta-strip {
+    display: flex; flex-wrap: wrap; gap: 8px 26px;
+    padding-top: 18px; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 12.5px; color: var(--ink-3);
+  }
+  .meta-strip b { color: var(--ink-2); font-weight: 500; }
+
+  section { display: flex; flex-direction: column; gap: 22px; }
+
+  /* ---------- figures ---------- */
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 26px 24px 18px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+  figure svg { display: block; width: 100%; min-width: 700px; height: auto; }
+  figcaption {
+    margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 13.5px; color: var(--ink-3); line-height: 1.55; max-width: 78ch;
+  }
+  figcaption b { color: var(--ink-2); font-weight: 600; }
+  figcaption code { color: var(--ink-2); }
+
+  /* ---------- diagram styling (SVG via classes, never presentation var()) ---------- */
+  .dg text { font-family: var(--sans); fill: var(--ink); }
+  .dg .m  { font-family: var(--mono); }
+  .dg .sm { font-size: 11px; fill: var(--ink-3); }
+  .dg .bold { font-weight: 650; }
+
+  .dg .box      { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1; }
+  .dg .box-open { fill: var(--surface);   stroke: var(--ink-3);  stroke-width: 1.5; }
+  .dg .grid     { stroke: var(--line-2);  stroke-width: 1; }
+
+  .dg .t-muted  { fill: var(--ink-3); }
+  .dg .t-accent { fill: var(--accent); }
+  .dg .t-stop   { fill: var(--stop); }
+  .dg .t-go     { fill: var(--go); }
+  .dg .t-on     { fill: var(--on-fill); }
+
+  .dg .spine      { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .dg .spine-text { fill: var(--accent-ink); }
+
+  .dg .ln-acc  { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  .dg .ln-ink  { stroke: var(--ink-3);  stroke-width: 1.5; fill: none; }
+  .dg .ln-stop { stroke: var(--stop);   stroke-width: 1.5; fill: none; }
+  .dg .ln-go   { stroke: var(--go);     stroke-width: 1.5; fill: none; }
+  .dg .gate-ln { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 3; }
+
+  .dg .bx-stop { fill: var(--surface); stroke: var(--stop); stroke-width: 1.5; }
+  .dg .bx-go   { fill: var(--surface); stroke: var(--go);   stroke-width: 1.5; }
+
+  .dg .mk-ink  { fill: var(--ink-3); }
+  .dg .mk-acc  { fill: var(--accent); }
+  .dg .mk-stop { fill: var(--stop); }
+  .dg .mk-go   { fill: var(--go); }
+
+  .dg .f-proc { fill: var(--k-proc); }
+  .dg .f-rule { fill: var(--k-rule); }
+  .dg .f-look { fill: var(--k-look); }
+  .dg .t-proc { fill: var(--k-proc); }
+  .dg .t-rule { fill: var(--k-rule); }
+  .dg .t-look { fill: var(--k-look); }
+  .dg .bx-rule { fill: var(--k-rule-soft); stroke: var(--k-rule); stroke-width: 1.5; }
+  .dg .bx-look-ghost { fill: none; stroke: var(--k-look); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .7; }
+
+  /* ---------- legend ---------- */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .legend-item .mono { color: var(--ink-3); }
+
+  /* ---------- phase list ---------- */
+  .phases { display: flex; flex-direction: column; }
+
+  .phase {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 24px;
+    padding: 26px 0;
+    border-top: 1px solid var(--line);
+  }
+  .phase:last-child { border-bottom: 1px solid var(--line); }
+
+  .rail { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .num {
+    font-family: var(--serif);
+    font-size: 34px; line-height: 1; font-weight: 600;
+    color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  .phase[data-gate] .num { color: var(--accent); }
+  .rail .cmd { font-family: var(--mono); font-size: 11px; color: var(--ink-3); word-break: break-all; }
+
+  .phase-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .phase-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+  .what { font-size: 14.5px; max-width: 72ch; }
+
+  .tag {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    border: 1px solid var(--line);
+  }
+  .tag.gate  { color: var(--accent-ink); background: var(--accent-soft); border-color: var(--accent-line); }
+  .tag.quiet { color: var(--ink-3); background: var(--surface-2); }
+
+  .io { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px 26px; }
+  .io-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .io-label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .chip {
+    font-family: var(--mono); font-size: 12px; line-height: 1.35;
+    padding: 4px 9px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--k-found);
+    border-radius: 4px;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .chip.proc  { border-left-color: var(--k-proc); }
+  .chip.rule  { border-left-color: var(--k-rule); }
+  .chip.look  { border-left-color: var(--k-look); }
+  .chip.found { border-left-color: var(--k-found); }
+  .chip.art   { border-left-color: var(--k-art); border-color: var(--accent-line); border-left-color: var(--k-art); background: var(--accent-soft); color: var(--ink); }
+  .chip.repo  { border-left-color: var(--line-2); border-style: dashed; color: var(--ink-3); }
+
+  .validator {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px;
+    padding: 8px 12px; border-radius: 6px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--ink-2);
+    align-self: flex-start;
+  }
+  .validator .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--go); flex: none; }
+  .validator.hard { border-color: var(--stop); }
+  .validator.hard .dot { background: var(--stop); }
+
+  /* ---------- table ---------- */
+  .table-shell {
+    overflow-x: auto; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); box-shadow: var(--shadow);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 640px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono-cell { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+  td.n { font-variant-numeric: tabular-nums; color: var(--ink-3); text-align: right; }
+  .kind-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 8px; }
+
+  /* ---------- callout ---------- */
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 16px 20px;
+    border-radius: 0 8px 8px 0;
+    font-size: 14.5px;
+    color: var(--ink-2);
+    max-width: 80ch;
+  }
+  .note b { color: var(--ink); }
+  .note code { color: var(--accent-ink); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 36px 18px 64px; gap: 44px; }
+    .phase { grid-template-columns: 1fr; gap: 12px; }
+    .rail { flex-direction: row; align-items: baseline; gap: 12px; }
+  }
+
+  @media print {
+    .wrap { padding: 0; gap: 32px; max-width: none; }
+    figure, .table-shell { box-shadow: none; break-inside: avoid; }
+    .phase { break-inside: avoid; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">pom-generator v2.0.0 · file map</p>
+    <h1>Which file is used when</h1>
+    <p class="lede">
+      The plugin is 43 files, but almost none of them load at once. Each phase opens a small,
+      specific set — a procedure telling it what to do, the invariants that constrain it, and a
+      lookup consulted per element. This is that map.
+    </p>
+    <div class="meta-strip">
+      <span><b>43</b> files</span>
+      <span><b>27</b> reference documents</span>
+      <span><b>9</b> commands</span>
+      <span><b>1</b> validator, <b>0</b> dependencies</span>
+    </div>
+  </header>
+
+  <!-- ============================ FIGURE 1 ============================ -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">The mechanism</p>
+      <h2>Everything passes through one artifact</h2>
+      <p>
+        The five analyze phases only ever write to <code>analysis.md</code>. Generation only ever
+        reads it. There is no path from the browser to your source files that skips the validator —
+        which is the entire point of splitting the two commands.
+      </p>
+    </div>
+
+    <figure>
+      <svg class="dg" viewBox="0 0 1000 398" role="img"
+           aria-label="The five analyze phases each write a section of analysis.md. The validator reads analysis.md and either blocks generation on exit 1, or lets pom-generate write Page Object files on exit 0.">
+        <defs>
+          <marker id="a-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="mk-ink"/>
+          </marker>
+          <marker id="a-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="mk-acc"/>
+          </marker>
+          <marker id="a-stop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="mk-stop"/>
+          </marker>
+          <marker id="a-go" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="mk-go"/>
+          </marker>
+        </defs>
+
+        <text x="8" y="16" class="m t-muted" font-size="10.5" letter-spacing="1.4">/POM-ANALYZE — OPENS A BROWSER, WRITES NO CODE</text>
+
+        <!-- phase boxes -->
+        <rect x="35"  y="44" width="170" height="58" rx="6" class="box"/>
+        <text x="120" y="68" text-anchor="middle" font-size="13" class="bold">P0 Preflight</text>
+        <text x="120" y="87" text-anchor="middle" class="sm">login · conventions</text>
+
+        <rect x="225" y="44" width="170" height="58" rx="6" class="box"/>
+        <text x="310" y="68" text-anchor="middle" font-size="13" class="bold">P1 Survey</text>
+        <text x="310" y="87" text-anchor="middle" class="sm">screenshot → regions</text>
+
+        <rect x="415" y="44" width="170" height="58" rx="6" class="box"/>
+        <text x="500" y="68" text-anchor="middle" font-size="13" class="bold">P2 Decompose</text>
+        <text x="500" y="87" text-anchor="middle" class="sm">component tree</text>
+
+        <rect x="605" y="44" width="170" height="58" rx="6" class="box"/>
+        <text x="690" y="68" text-anchor="middle" font-size="13" class="bold">P3 Probe</text>
+        <text x="690" y="87" text-anchor="middle" class="sm">drain the queue</text>
+
+        <rect x="795" y="44" width="170" height="58" rx="6" class="box"/>
+        <text x="880" y="68" text-anchor="middle" font-size="13" class="bold">P4 Classify</text>
+        <text x="880" y="87" text-anchor="middle" class="sm">registry · locators</text>
+
+        <!-- gates -->
+        <line x1="405" y1="38" x2="405" y2="110" class="gate-ln"/>
+        <text x="405" y="30" text-anchor="middle" class="m t-accent" font-size="10" letter-spacing=".08em">GATE 1</text>
+        <line x1="595" y1="38" x2="595" y2="110" class="gate-ln"/>
+        <text x="595" y="30" text-anchor="middle" class="m t-accent" font-size="10" letter-spacing=".08em">GATE 2</text>
+
+        <!-- writes into the spine -->
+        <line x1="120" y1="104" x2="120" y2="158" class="ln-acc" marker-end="url(#a-acc)"/>
+        <line x1="310" y1="104" x2="310" y2="158" class="ln-acc" marker-end="url(#a-acc)"/>
+        <line x1="500" y1="104" x2="500" y2="158" class="ln-acc" marker-end="url(#a-acc)"/>
+        <line x1="690" y1="104" x2="690" y2="158" class="ln-acc" marker-end="url(#a-acc)"/>
+        <line x1="880" y1="104" x2="880" y2="158" class="ln-acc" marker-end="url(#a-acc)"/>
+
+        <text x="120" y="131" text-anchor="middle" class="m sm">Meta</text>
+        <text x="310" y="131" text-anchor="middle" class="m sm">Regions + Elements</text>
+        <text x="500" y="131" text-anchor="middle" class="m sm">tree + manifest</text>
+        <text x="690" y="131" text-anchor="middle" class="m sm">probe results</text>
+        <text x="880" y="131" text-anchor="middle" class="m sm">locators</text>
+
+        <!-- the artifact spine -->
+        <rect x="35" y="162" width="930" height="54" rx="7" class="spine"/>
+        <text x="500" y="185" text-anchor="middle" class="m spine-text bold" font-size="14">.pom-generator/analysis/&lt;slug&gt;/analysis.md</text>
+        <text x="500" y="204" text-anchor="middle" class="sm">rewritten after every single element — the state of the run, not a report</text>
+
+        <line x1="500" y1="218" x2="500" y2="252" class="ln-ink" marker-end="url(#a-ink)"/>
+
+        <!-- validator -->
+        <rect x="368" y="254" width="264" height="46" rx="6" class="box-open"/>
+        <text x="500" y="274" text-anchor="middle" class="m bold" font-size="12.5">validate-analysis.mjs</text>
+        <text x="500" y="291" text-anchor="middle" class="sm">26 rules · phase-aware</text>
+
+        <!-- fail branch -->
+        <path d="M400 300 L400 324 L215 324 L215 344" class="ln-stop" marker-end="url(#a-stop)"/>
+        <text x="302" y="318" text-anchor="middle" class="m t-stop" font-size="10.5">exit 1</text>
+        <rect x="70" y="346" width="290" height="40" rx="6" class="bx-stop"/>
+        <text x="215" y="371" text-anchor="middle" class="t-stop bold" font-size="12.5">stop — no file is written</text>
+
+        <!-- pass branch -->
+        <path d="M600 300 L600 324 L785 324 L785 344" class="ln-go" marker-end="url(#a-go)"/>
+        <text x="698" y="318" text-anchor="middle" class="m t-go" font-size="10.5">exit 0</text>
+        <rect x="640" y="346" width="290" height="40" rx="6" class="bx-go"/>
+        <text x="785" y="364" text-anchor="middle" class="t-go bold" font-size="12.5">/pom-generate</text>
+        <text x="785" y="379" text-anchor="middle" class="m sm">src/pages/ · src/components/</text>
+      </svg>
+
+      <figcaption>
+        <b>The artifact is the only channel between analysis and code.</b> Probing writes to it;
+        generation reads it and never opens a browser to decide anything. Because the file is
+        rewritten after every element, a crash or a context compaction costs one element rather
+        than the whole run — and because the validator sits on the only exit, an incomplete
+        analysis cannot become a Page Object.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================ FIGURE 2 ============================ -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">Three kinds of document</p>
+      <h2>Read once, always on, or looked up</h2>
+      <p>
+        The <code>references/</code> tree is split by <em>how a document is consulted</em>, not by
+        topic. That is what makes the right file findable mid-run.
+      </p>
+    </div>
+
+    <figure>
+      <svg class="dg" viewBox="0 0 960 272" role="img"
+           aria-label="Procedure documents are read once at the start of their phase. Invariant documents apply continuously across the whole run. Catalog lookups are consulted repeatedly, but only during the probe phase.">
+
+        <line x1="190" y1="34" x2="940" y2="34" class="grid"/>
+        <text x="236" y="22" text-anchor="middle" class="m sm">P0</text>
+        <text x="352" y="22" text-anchor="middle" class="m sm">P1</text>
+        <text x="484" y="22" text-anchor="middle" class="m sm">P2</text>
+        <text x="666" y="22" text-anchor="middle" class="m sm">P3</text>
+        <text x="822" y="22" text-anchor="middle" class="m sm">P4</text>
+        <text x="908" y="22" text-anchor="middle" class="m sm">gen</text>
+
+        <line x1="296" y1="28" x2="296" y2="242" class="grid"/>
+        <line x1="414" y1="28" x2="414" y2="242" class="grid"/>
+        <line x1="558" y1="28" x2="558" y2="242" class="grid"/>
+        <line x1="772" y1="28" x2="772" y2="242" class="grid"/>
+        <line x1="876" y1="28" x2="876" y2="242" class="grid"/>
+
+        <!-- lane 1: procedure -->
+        <text x="0" y="70" class="m t-proc bold" font-size="11.5">PROCEDURE</text>
+        <text x="0" y="86" class="sm">analyze/ · generate/</text>
+        <text x="0" y="100" class="sm">“what do I do next”</text>
+        <rect x="194" y="58" width="98"  height="26" rx="4" class="f-proc"/>
+        <rect x="300" y="58" width="110" height="26" rx="4" class="f-proc"/>
+        <rect x="418" y="58" width="136" height="26" rx="4" class="f-proc"/>
+        <rect x="562" y="58" width="206" height="26" rx="4" class="f-proc"/>
+        <rect x="776" y="58" width="96"  height="26" rx="4" class="f-proc"/>
+        <rect x="880" y="58" width="56"  height="26" rx="4" class="f-proc"/>
+        <text x="243" y="75" text-anchor="middle" class="m t-on bold" font-size="9.5">pipeline</text>
+        <text x="355" y="75" text-anchor="middle" class="m t-on bold" font-size="9.5">p1-survey</text>
+        <text x="486" y="75" text-anchor="middle" class="m t-on bold" font-size="9.5">p2-decompose</text>
+        <text x="665" y="75" text-anchor="middle" class="m t-on bold" font-size="9.5">p3-probe</text>
+        <text x="824" y="75" text-anchor="middle" class="m t-on bold" font-size="9.5">p4-class</text>
+        <text x="908" y="75" text-anchor="middle" class="m t-on bold" font-size="9.5">emit</text>
+
+        <!-- lane 2: invariants -->
+        <text x="0" y="146" class="m t-rule bold" font-size="11.5">INVARIANTS</text>
+        <text x="0" y="162" class="sm">rules/ · 00-safety</text>
+        <text x="0" y="176" class="sm">“what must be true”</text>
+        <rect x="194" y="134" width="742" height="26" rx="4" class="bx-rule"/>
+        <text x="565" y="151" text-anchor="middle" class="m t-rule bold" font-size="10.5">element · component · page · flow · safety — apply continuously, never “done”</text>
+
+        <!-- lane 3: lookup -->
+        <text x="0" y="216" class="m t-look bold" font-size="11.5">LOOKUP</text>
+        <text x="0" y="232" class="sm">catalog/</text>
+        <text x="0" y="246" class="sm">“how do I probe X”</text>
+        <rect x="194" y="204" width="216" height="26" rx="4" class="bx-look-ghost"/>
+        <text x="302" y="221" text-anchor="middle" class="m t-look" font-size="9.5">index only — hypothesis</text>
+        <rect x="568" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="590" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="612" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="634" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="656" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="678" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="700" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="722" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <rect x="744" y="204" width="15" height="26" rx="2" class="f-look"/>
+        <text x="664" y="252" text-anchor="middle" class="sm">one family file per element, on demand</text>
+      </svg>
+
+      <figcaption>
+        <b>Only the probe phase does random access.</b> A run probing a dropdown opens
+        <code>catalog/selection.md</code> and nothing else from the catalog — the other five family
+        files stay on disk. The v1 <code>element-behavior-analysis.md</code> was 367 lines that
+        loaded in full whenever any part of it was needed.
+      </figcaption>
+    </figure>
+
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:var(--k-proc)"></span> Procedure <span class="mono">analyze/ generate/</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--k-rule)"></span> Invariant <span class="mono">rules/</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--k-look)"></span> Lookup <span class="mono">catalog/</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--k-found)"></span> Foundation <span class="mono">00–03</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--k-art)"></span> Artifact</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--line-2)"></span> Your repo <span class="mono">(dashed)</span></span>
+    </div>
+  </section>
+
+  <!-- ============================ PHASE BY PHASE ============================ -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">Phase by phase</p>
+      <h2>Exactly what opens, and what it produces</h2>
+      <p>
+        Dashed chips live in <em>your</em> test framework's repo. Everything else ships with the
+        plugin.
+      </p>
+    </div>
+
+    <div class="phases">
+
+      <article class="phase">
+        <div class="rail"><span class="num">E</span><span class="cmd">/pom-explore</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Explore</h3><span class="tag quiet">7 checkpoints</span></div>
+          <p class="what">Learns your framework's conventions from code you already wrote. Run once per repo. Unchanged in v2 — it was already well-formed.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">references/explore.md</span>
+                <span class="chip found">registry-format.md</span>
+                <span class="chip found">00-safety.md</span>
+                <span class="chip repo">your existing POMs + tests</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip repo">conventions.md</span>
+                <span class="chip repo">component-registry.md</span>
+                <span class="chip repo">structure-notes.md</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <div class="rail"><span class="num">P0</span><span class="cmd">/pom-analyze</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Preflight</h3></div>
+          <p class="what">Checks MCP tools, requires conventions, sets the viewport, navigates, and decides whether you are logged in — from the rendered page only, never from the filesystem.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">analyze/pipeline.md</span>
+                <span class="chip found">00-safety.md</span>
+                <span class="chip found">01-glossary.md</span>
+                <span class="chip found">02-artifact-schema.md</span>
+                <span class="chip found">03-toolbelt.md</span>
+                <span class="chip repo">conventions.md</span>
+                <span class="chip repo">component-registry.md</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips"><span class="chip art">analysis.md → ## Meta</span></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase" data-gate>
+        <div class="rail"><span class="num">P1</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Survey</h3><span class="tag gate">stops at gate 1</span></div>
+          <p class="what">Screenshots the page and partitions it <em>visually</em> before reading the DOM — that is what catches “these five controls are one filter panel”. Then enumerates every element, plus a second sweep for icon-only buttons, hover-revealed controls, and anything outside the main column.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">analyze/p1-survey.md</span>
+                <span class="chip rule">rules/element.md</span>
+                <span class="chip rule">rules/page.md</span>
+                <span class="chip look">catalog/index.md</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip art">## Regions</span>
+                <span class="chip art">## Elements — all pending</span>
+                <span class="chip art">screens/baseline.png · R-nn.png</span>
+              </div>
+            </div>
+          </div>
+          <div class="validator"><span class="dot"></span> validate-analysis.mjs --phase=survey</div>
+        </div>
+      </article>
+
+      <article class="phase" data-gate>
+        <div class="rail"><span class="num">P2</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Decompose</h3><span class="tag gate">stops at gate 2</span></div>
+          <p class="what">Turns regions into classes. The highest-leverage judgement in the run: a wrong boundary propagates into every generated file, and unlike a wrong selector, nothing downstream catches it.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">analyze/p2-decompose.md</span>
+                <span class="chip rule">rules/component.md</span>
+                <span class="chip rule">rules/page.md</span>
+                <span class="chip repo">conventions.md</span>
+                <span class="chip repo">component-registry.md</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip art">## Component tree</span>
+                <span class="chip art">## Output manifest</span>
+              </div>
+            </div>
+          </div>
+          <div class="validator"><span class="dot"></span> validate-analysis.mjs --phase=decomposed</div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <div class="rail"><span class="num">P3</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Probe</h3><span class="tag quiet">unattended</span></div>
+          <p class="what">Drains the pending queue. Types into inputs, selects from dropdowns, toggles checkboxes, clicks buttons — and records what actually happened. A revealed dialog simply appends more pending rows, so recursion needs no special handling. The artifact is rewritten after <em>every</em> element.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads — one catalog family per element</span>
+              <div class="chips">
+                <span class="chip proc">analyze/p3-probe.md</span>
+                <span class="chip look">catalog/inputs.md</span>
+                <span class="chip look">catalog/selection.md</span>
+                <span class="chip look">catalog/actions.md</span>
+                <span class="chip look">catalog/containers.md</span>
+                <span class="chip look">catalog/collections.md</span>
+                <span class="chip look">catalog/temporal.md</span>
+                <span class="chip rule">rules/element.md</span>
+                <span class="chip found">00-safety.md</span>
+                <span class="chip found">03-toolbelt.md</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip art">Probe · Observed · Reset</span>
+                <span class="chip art">Reveals · Affects</span>
+                <span class="chip art">screens/E-nn-before|after.png</span>
+              </div>
+            </div>
+          </div>
+          <div class="validator"><span class="dot"></span> validate-analysis.mjs --phase=probed</div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <div class="rail"><span class="num">P4</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Classify</h3></div>
+          <p class="what">Matches each element against the registry, authors the locator from your conventions, then cross-checks it against Playwright's own and highlights it on the page to confirm it lands on the element you meant.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">analyze/p4-classify.md</span>
+                <span class="chip rule">rules/element.md</span>
+                <span class="chip rule">rules/component.md</span>
+                <span class="chip repo">component-registry.md</span>
+                <span class="chip repo">conventions.md</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip art">Registry · Locator</span>
+                <span class="chip art">Locator-pw · Locator-agree</span>
+                <span class="chip art">## Delta — on a re-run</span>
+              </div>
+            </div>
+          </div>
+          <div class="validator"><span class="dot"></span> validate-analysis.mjs — full rule set</div>
+        </div>
+      </article>
+
+      <article class="phase" data-gate>
+        <div class="rail"><span class="num">G</span><span class="cmd">/pom-generate</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Generate + verify</h3><span class="tag gate">hard gate</span></div>
+          <p class="what">Runs the validator first and writes nothing on exit 1. Then emits files deepest-component-first, runs <em>your</em> type-checker, and highlights every generated selector on the live page — because a selector that resolves to the wrong element passes every check except looking at it.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">generate/emit.md</span>
+                <span class="chip proc">generate/verify.md</span>
+                <span class="chip art">analysis.md</span>
+                <span class="chip look">catalog/* — wrapper shapes</span>
+                <span class="chip rule">rules/element.md</span>
+                <span class="chip repo">conventions.md</span>
+                <span class="chip repo">1–2 existing POMs, as style reference</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip repo">src/pages/…</span>
+                <span class="chip repo">src/components/…</span>
+                <span class="chip art">manifest → written · verified</span>
+              </div>
+            </div>
+          </div>
+          <div class="validator hard"><span class="dot"></span> exit 1 → stop, write nothing &nbsp;·&nbsp; exit 2 → warn and proceed</div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <div class="rail"><span class="num">F</span><span class="cmd">/pom-analyze-flow</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Flow</h3><span class="tag quiet">checkpoint per step</span></div>
+          <p class="what">A thin navigation layer for pages you cannot reach by URL. Per-page work is the identical P1–P4 pipeline; this adds transition verification and shared-component dedupe, so a nav bar appearing on four pages is wrapped once.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads — plus everything P1–P4 uses</span>
+              <div class="chips">
+                <span class="chip proc">analyze/flow.md</span>
+                <span class="chip rule">rules/flow.md</span>
+                <span class="chip repo">route.yml</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip art">flows/&lt;id&gt;/flow.md</span>
+                <span class="chip art">one analysis.md per page</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phase">
+        <div class="rail"><span class="num">L</span><span class="cmd">/pom-learn</span></div>
+        <div class="phase-body">
+          <div class="phase-head"><h3>Learn</h3></div>
+          <p class="what">Reads your hand-edit to a generated file, decides whether it was a one-off or a systemic pattern, and — with your confirmation — writes the pattern back so the next run gets it right first time.</p>
+          <div class="io">
+            <div class="io-col">
+              <span class="io-label">Reads</span>
+              <div class="chips">
+                <span class="chip proc">learn-from-diff.md</span>
+                <span class="chip found">registry-format.md</span>
+                <span class="chip repo">git diff of your edit</span>
+              </div>
+            </div>
+            <div class="io-col">
+              <span class="io-label">Writes</span>
+              <div class="chips">
+                <span class="chip repo">conventions.md</span>
+                <span class="chip repo">component-registry.md</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+
+    <div class="note">
+      <b>Two files are read in every phase and never stop applying:</b> <code>00-safety.md</code>
+      (credentials, login, destructive actions) and <code>01-glossary.md</code> (IDs, statuses,
+      legal action verbs). They are foundations rather than procedure — which is why the safety
+      rules now live in exactly one place instead of the six copies v1 carried.
+    </div>
+  </section>
+
+  <!-- ============================ INVENTORY ============================ -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">Inventory</p>
+      <h2>All 43 files</h2>
+    </div>
+
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>Location</th>
+            <th>Kind</th>
+            <th style="text-align:right">Files</th>
+            <th style="text-align:right">Lines</th>
+            <th>Loaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono-cell">skills/…/SKILL.md</td>
+            <td><span class="kind-dot" style="background:var(--k-found)"></span>Router</td>
+            <td class="n">1</td><td class="n">87</td>
+            <td>When the skill is invoked</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">references/00–03</td>
+            <td><span class="kind-dot" style="background:var(--k-found)"></span>Foundation</td>
+            <td class="n">4</td><td class="n">627</td>
+            <td>Every phase</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">references/analyze/</td>
+            <td><span class="kind-dot" style="background:var(--k-proc)"></span>Procedure</td>
+            <td class="n">6</td><td class="n">818</td>
+            <td>One file per phase</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">references/generate/</td>
+            <td><span class="kind-dot" style="background:var(--k-proc)"></span>Procedure</td>
+            <td class="n">2</td><td class="n">219</td>
+            <td>Only during /pom-generate</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">references/rules/</td>
+            <td><span class="kind-dot" style="background:var(--k-rule)"></span>Invariant</td>
+            <td class="n">4</td><td class="n">460</td>
+            <td>Whenever a modelling decision is made</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">references/catalog/</td>
+            <td><span class="kind-dot" style="background:var(--k-look)"></span>Lookup</td>
+            <td class="n">7</td><td class="n">628</td>
+            <td>Per element, one family file at a time</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">references/ — explore, learn, registry, auth</td>
+            <td><span class="kind-dot" style="background:var(--k-found)"></span>Standalone</td>
+            <td class="n">4</td><td class="n">272</td>
+            <td>Explore, learn, team auth</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">commands/</td>
+            <td><span class="kind-dot" style="background:var(--k-proc)"></span>Entry point</td>
+            <td class="n">9</td><td class="n">263</td>
+            <td>5 live + 4 aliases</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">scripts/</td>
+            <td><span class="kind-dot" style="background:var(--k-art)"></span>Executable</td>
+            <td class="n">2</td><td class="n">881</td>
+            <td>Run at every phase boundary</td>
+          </tr>
+          <tr>
+            <td class="mono-cell">manifests · README · .gitignore</td>
+            <td><span class="kind-dot" style="background:var(--line-2)"></span>Packaging</td>
+            <td class="n">4</td><td class="n">—</td>
+            <td>Install time only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>

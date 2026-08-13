@@ -25,6 +25,8 @@ Use this alternative instead if:
    ```
 2. Add `auth/storageState.json` and any credentials file to `.gitignore` and
    `.claudeignore` — this skill must never read them directly.
+   Also add `.pom-generator/analysis/**/screens/` if your app's pages show real data in
+   screenshots; the analysis markdown is meant to be committed, the images may not be.
 3. Override the bundled MCP server config in your **project's own** `.mcp.json`
    (this takes precedence over the plugin's default for this project):
    ```json
@@ -45,7 +47,11 @@ Use this alternative instead if:
 4. Re-run your login script whenever the session expires (CI: on a schedule; local
    team use: whenever generation reports being logged out).
 
-With this override in place, the Stage 0 preflight in `generate-single.md` /
-`generate-flow.md` should check for the file's existence instead of checking login
-state via snapshot — mention this to the user if they've set up this mode, since the
-default preflight logic assumes the persistent-profile path.
+With this override in place, the P0 preflight in `analyze/pipeline.md` may check that the storage
+state file **exists** instead of checking login state from the rendered page — mention this to the
+user if they have set up this mode, since the default preflight assumes the persistent-profile
+path.
+
+Checking that the file exists is the only permitted interaction with it. **Never read its
+contents**, and never read the credentials or login script that produced it — `00-safety.md`
+Rule 1 applies here exactly as everywhere else. This skill needs the path, never what is inside.
