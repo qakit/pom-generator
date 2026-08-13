@@ -38,7 +38,11 @@
    a. Build an explicit inventory of every distinct interactive/custom element visible
       in the snapshot (every input, button, icon-as-button, dropdown, tab, and any
       container that groups them). List them before probing any of them — this list
-      is the checklist you'll work through, not an informal impression.
+      is the checklist you'll work through, not an informal impression. **Note that
+      some elements only become visible during interaction (e.g. a clear/X button
+      inside a text input after typing, an autocomplete dropdown). These will be
+      discovered during probing in step 4b and added to the inventory then — the
+      initial inventory here is what's visible in the default page state.**
    a1. **Before finalizing this inventory, re-scan the snapshot region by region**
       (following the top-to-bottom, left-to-right traversal order in
       `element-behavior-analysis.md`) specifically looking for elements that are easy
@@ -68,6 +72,13 @@
       point of using it. An element only counts as "analyzed" once you've actually
       interacted with it and recorded what happened, not once you've formed an
       opinion about what it probably does.
+   b1. **Between each probe: restore clean page state.** After probing element N, close
+      whatever opened (dropdown, dialog, calendar) and verify the page is back to
+      baseline before probing element N+1. **If you cannot restore clean state**
+      (an overlay won't dismiss, a dialog has no close button, the page state is
+      ambiguous), **navigate to the page URL again** — this is the correct and
+      preferred recovery, not a workaround. A stale overlay from a prior probe
+      blocking the next probe is the most common cause of analysis failure.
    b2. **"Observed" is not a valid outcome for any actionable element** — any button,
       checkbox, link, toggle, tab, or icon-as-button. "Observed" only ever means "I saw
       this static/decorative element in the snapshot and it needs no interaction"
@@ -107,6 +118,10 @@
       v. Do not collapse this into "the dialog has a Save and a Cancel" and move on —
          actually write the file. An analyzed dialog without a generated component file
          is unfinished work.
+      vi. **After finishing dialog analysis, reload the initial page URL to return to
+          clean state.** Do not try to close the dialog and continue — dialog close
+          actions frequently leave behind overlays or changed state. Reloading is the
+          correct and expected recovery, not a failure.
       Skip recursion only if you've already analyzed an identical dialog structure
       (same component, same layout) earlier in this same run.
    d. Before moving to step 5, do a pass over your inventory from 4a and confirm every
@@ -114,7 +129,10 @@
       an inference. **Specifically check the Probe/action column of every actionable
       row — if it says "Observed" or is otherwise not a real action verb
       (Typed/Clicked/Selected/Hovered), that item is not actually done: go back and
-      probe it now, before writing any code.**
+      probe it now, before writing any code.** **Also check that each probe result
+      reflects a real interaction, not an inference — e.g. "collapsed the group buttons"
+      for a button that was actually clicked and verified to collapse is correct, but
+      "opens a dialog" for a button that was NOT clicked is wrong.**
    d1. **Also audit the side effects: for every element whose probe opened a dialog,
       confirm a component file was actually generated for that dialog (per step 4c-iv).**
       List each dialog and its corresponding output file. If a dialog was analyzed but

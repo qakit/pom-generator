@@ -46,6 +46,58 @@ scans a page. This isn't just cosmetic — it keeps sibling/dependency relations
 (e.g. "this dropdown affects that section below it") discoverable in the order they'd
 actually be noticed, and keeps the generated file's structure predictable.
 
+## State discipline between probes
+
+Each element probe starts from a **known clean page state** — no open dropdowns, no
+pending overlays, no partial filter values from a prior probe. This is not optional:
+probing element B while element A's dropdown is still open produces misleading results
+(element B's click is intercepted, wrong element is classified, overlays block
+subsequent actions).
+
+**After every probe action, before moving to the next element:**
+
+1. **Close whatever opened.** If typing into a search input opened an autocomplete
+   dropdown → clear the input (use the clear/X button that appeared, or type Escape).
+   If clicking a date picker opened a calendar dialog → close it (click outside,
+   Escape, or click the confirm/cancel button). If toggling a checkbox applied a
+   filter → toggle it back to the original state.
+2. **Verify the page returned to baseline.** Take a quick snapshot to confirm no
+   lingering overlays, dropdowns, or toast messages are visible.
+3. **If you're stuck** (an overlay won't close, a dialog has no visible close button,
+   or the page state is ambiguous), **navigate to the page URL again** to get a clean
+   slate. This is faster than trying to work around stale state and is the correct
+   recovery — not a failure.
+
+**When a probe opens a dialog (new analysis target):**
+- Analyze the dialog fully (see "Dialogs opened by a button" below).
+- After finishing the dialog analysis, **reload the initial page URL** to return to
+  clean state. Do NOT try to "close the dialog and continue" — reloading guarantees
+  a consistent starting point for the next probe.
+
+## Selector proximity rule
+
+When writing locators for Page Object getters, **always use the shortest possible path
+from the component's root element** — never reach further up the DOM tree than needed.
+
+- If the element has a `data-aid`/`data-testid` on itself → use that directly.
+- If the element has a `data-aid`/`data-testid` on its **immediate parent** → locate
+  the parent first (via `.locator()` on the component), then use `.getByRole()` or
+  `.first()`/`.last()` to reach the specific child.
+- If neither → walk down one more level (grandparent), but no further.
+
+**Never write a selector that starts from the page level and drills deep into a
+sub-component.** Each component class already receives a scoped `Locator` (its own
+root). All getters inside that class should be relative to `this.element` — the
+selector path is `this.element → child → grandchild at most`.
+
+This rule exists because:
+- Deep page-level selectors are fragile — they break when the component is moved or
+  wrapped in a new container
+- Close selectors are faster (narrower search space)
+- They make the component self-contained and reusable across pages
+- They correctly express the architectural intent: a component knows its own internals,
+  not where it sits in the page
+
 ## Per-element-type analysis
 
 For each element encountered during the traversal, apply the relevant procedure below.
@@ -65,7 +117,10 @@ dialog-actions section below) still applies fully.
    that input has not been analyzed — go back and actually type into it.
 3. Observe what happens:
    - A new dropdown/listbox/suggestion-list appears → this is an autocomplete/combobox
-     pattern. Check `component-registry.md` for a matching wrapper (e.g.
+     pattern. **The dropdown itself must be fully analyzed and wrapped as its own
+     component** (see "Dialogs opened by a button" — the same recursion rule applies:
+     build a sub-inventory of the dropdown's elements, probe them, generate a
+     component file). Check `component-registry.md` for a matching wrapper (e.g.
      `AutocompleteInput`); if none exists, this is a strong candidate for a new
      registry entry, not just a one-off getter.
    - A network request fires and the page/results update in place, with no dropdown →
@@ -73,7 +128,15 @@ dialog-actions section below) still applies fully.
      accordingly (e.g. exposes a `search(text)` method that also describes what
      updates as a result, not just a `fill()` passthrough).
    - Nothing happens beyond the value being entered → plain text input.
-4. Clear the probe value afterward — don't leave test data entered in the live page.
+4. **After typing, observe ALL changes to the input container — not just what appears
+   below it.** A clear button (X icon) appearing inside the input field, a character
+   counter, a validation message, or an icon that changes from magnifier to X — these
+   are all dynamic elements that belong in the inventory and need their own getters.
+   The input container may have elements that are only visible in certain states
+   (with text, without text, with error). Document and wrap all of them.
+5. Clear the probe value afterward (use the clear button if one appeared, or
+   clear programmatically) — don't leave test data entered in the live page.
+   **Confirm the input is back to its empty state before moving to the next element.**
 
 ### Date / date-range inputs
 
@@ -86,6 +149,10 @@ dialog-actions section below) still applies fully.
    just "click a date," but whatever the real interaction surface is.
 3. Register it in `component-registry.md` if new, so future date pickers on other
    pages in this project reuse the same wrapper.
+4. **After analyzing the picker, close it completely** (Escape, click outside, or use
+   its cancel/clear button). Verify with a snapshot that the picker is gone and the
+   page is back to baseline before moving to the next element. An open date picker
+   will block clicks on elements behind it.
 
 ### Buttons
 
@@ -95,6 +162,11 @@ dialog-actions section below) still applies fully.
 3. Classify based on what actually happened — this determines both which wrapper
    pattern applies and, in the flow/multi-step context, what "output" it should be
    treated as (see the specific cases below: dialog, filter, tab).
+4. **After clicking a button that changed page state (filtered data, toggled a
+   section, applied a preset), restore the page to its original state before moving
+   to the next element.** Click the button again to toggle it off, clear the filter,
+   or simply **reload the page URL**. An active filter from a prior probe changes what
+   data is visible for all subsequent probes, making their results unreliable.
 
 **Never infer a button's behavior from a different button, even one that looks
 similar or sits nearby.** A "Create X" button, an "Open X" button, and a row's own
@@ -105,6 +177,14 @@ about what a separately-labeled "Create" button does — click it too, independe
 Recording an untested button's outcome as if it matched a tested one is the single
 most likely way this analysis silently produces wrong wrappers, because it looks
 complete in the summary while actually being unverified.
+
+**Do not trust the visual appearance or label of a button to predict its behavior.**
+An icon next to a group of buttons that "looks like" an expand/collapse toggle might
+actually open a dialog. A chevron icon might navigate to a new page. The ONLY way to
+classify a button is to click it and observe the real outcome — snapshot before and
+after, compare the DOM. If you wrote "expands/collapses" for a button without actually
+clicking it and verifying that no dialog appeared, that classification is wrong —
+go back and click it.
 
 ### Icon / SVG / image / anchor acting as a button
 
@@ -124,11 +204,14 @@ let tag type alone determine whether something is treated as a clickable action.
 2. If no dialog/modal wrapper class exists yet for this shape, create one and register
    it in `component-registry.md` (see the existing `Modal` entry as a starting point —
    extend or create a more specific one if this dialog's structure warrants it).
-3. To close/return: prefer whatever the dialog itself offers (an explicit close
-   button, or Escape) over navigating away. If neither closes it, navigate back to the
-   URL you started from and resume traversal from where you left off. Never assume the
-   dialog closed just because an action inside it looked like it should close it —
-   verify with a snapshot.
+3. **To return to the parent page after analyzing the dialog: reload the initial page
+   URL.** Don't rely on closing the dialog — dialog close actions often leave behind
+   stale overlays, half-applied filters, or changed DOM state that will confuse the
+   next probe. Reloading gives you a clean page to work from. This is the preferred
+   recovery, not a fallback.
+4. Never assume the dialog closed just because an action inside it looked like it
+   should close it — verify with a snapshot. If the dialog is still visible after
+   your close attempt, reload the page URL rather than trying another close method.
 
 ### Buttons that change filtering/results
 
@@ -152,6 +235,20 @@ in the wrapper what part of the page it affects, if that's discoverable.
    any newly-revealed elements.
 4. This is the same principle as the dialog case: something appearing as a result of
    an interaction gets fully analyzed, not just noted as "exists."
+5. **After probing, reset the dropdown to its original value** or reload the page.
+   A selected value may filter data or change what elements are visible, affecting all
+   subsequent probes.
+
+### Checkboxes / toggles
+
+1. Click to toggle the checkbox.
+2. Observe the effect — does it filter a table, enable/disable other elements, show a
+   confirmation dialog?
+3. **Verify the effect with a snapshot** — don't just note "checkbox toggled", check
+   whether the page actually changed (rows filtered, sections shown/hidden).
+4. **Toggle it back to the original state immediately.** A checked checkbox that
+   filters data will affect every subsequent probe on this page. If toggling back
+   doesn't work (overlay blocks the click), reload the page.
 
 ### Dialogs with Save / Cancel / Apply / Filter actions
 
@@ -172,6 +269,10 @@ structure, unless the user has explicitly asked you to verify the save behavior 
    revealed content as its own area to fully analyze with these same rules — a tab
    panel is a component (per the architecture philosophy above), and its contents
    deserve the same top-to-bottom, left-to-right walk as a fresh page would.
+4. **After analyzing a tab's content, return to the originally-active tab** before
+   moving to the next element in the parent page's inventory. Tab state persists
+   across probes — leaving a different tab active will change what elements are
+   visible during subsequent analysis.
 
 ## Self-verification: use the framework you just generated to test itself
 
@@ -184,10 +285,19 @@ at "the code compiles." Actually exercise it:
 2. Call each generated getter/action method in turn and confirm: the locator actually
    resolves to a real element (not zero matches, not ambiguous multiple matches), and
    each action method produces the effect its name implies.
-3. Anything that fails this check is a real problem with the generated selector or
+3. **Verify dynamic elements are covered.** For each text input that showed a clear
+   button (X icon) when text was typed, confirm the generated file has a getter for
+   that clear button. For each input that opened an autocomplete dropdown, confirm the
+   dropdown has its own component/getter. These are state-dependent elements that are
+   easy to miss in a static review.
+4. **Verify selector proximity.** Check that every getter in a component class uses
+   `this.element` as its root — no getter should reach from the page level into a
+   sub-component. If a getter uses `page.locator(...)` inside a component class, that's
+   a violation — rewrite it as `this.element.locator(...)`.
+5. Anything that fails these checks is a real problem with the generated selector or
    method, not a style nitpick — fix it before presenting the file, and mention in the
    summary that this verification pass ran and what (if anything) it caught.
-4. This is specifically about validating that selectors and wrapper behavior are
+6. This is specifically about validating that selectors and wrapper behavior are
    sound — it is not the same as writing an actual test case for the user's suite; it's
    a generation-time QA step, not a deliverable.
 
