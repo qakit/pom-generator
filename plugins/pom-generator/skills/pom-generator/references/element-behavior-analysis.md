@@ -57,7 +57,12 @@ dialog-actions section below) still applies fully.
 
 1. First, try to infer intent from static signals: label text, placeholder, name/id
    attributes, `aria-label` (e.g. "employees", "search query" style names).
-2. Type a short, generic probe string into it.
+2. **Click alone is never sufficient to classify a text input — you must actually type
+   a short, generic probe string into it and observe the result.** Clicking only tells
+   you the field is focusable; it tells you nothing about whether typing triggers an
+   autocomplete dropdown, a live network search, or nothing at all. If your notes say
+   "clicking it didn't open a dropdown" without also saying what happened after typing,
+   that input has not been analyzed — go back and actually type into it.
 3. Observe what happens:
    - A new dropdown/listbox/suggestion-list appears → this is an autocomplete/combobox
      pattern. Check `component-registry.md` for a matching wrapper (e.g.

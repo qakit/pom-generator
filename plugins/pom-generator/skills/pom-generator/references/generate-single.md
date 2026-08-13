@@ -39,6 +39,27 @@
       in the snapshot (every input, button, icon-as-button, dropdown, tab, and any
       container that groups them). List them before probing any of them — this list
       is the checklist you'll work through, not an informal impression.
+   a1. **Before finalizing this inventory, re-scan the snapshot region by region**
+      (following the top-to-bottom, left-to-right traversal order in
+      `element-behavior-analysis.md`) specifically looking for elements that are easy
+      to miss on a first pass: icon-only buttons with no visible label (gear/settings
+      icons, kebab/more-options icons), elements inside a filter panel/sidebar/toolbar
+      container, and anything positioned away from the main content area (headers,
+      side panels). A container itself being in the inventory is not sufficient —
+      every actionable element *inside* it needs its own inventory line too.
+   a2. **If a todo/task-tracking tool is available in this environment (e.g. TodoWrite),
+      use it to register every item from the inventory above as its own individual
+      task before probing anything** — one task per element, not one task for
+      "analyze elements." Mark each task in-progress only while actually performing
+      its probe, and completed only once a real observed outcome is recorded for it.
+      This is not optional bookkeeping: relying on prose intention alone to probe
+      "every element" has repeatedly failed in practice on large pages — a
+      per-element task list makes an unprobed element structurally visible (still
+      pending) rather than something that can be silently skipped while attention
+      drifts to writing code. If no such tool is available, keep the same discipline
+      manually — write the full inventory out as a literal checklist in your own
+      working notes before starting, and don't let the list shrink from view as you
+      go, e.g. by only mentally tracking "what's left."
    b. For **every single item** in that inventory, apply the matching procedure from
       `element-behavior-analysis.md` — actually perform the probing action (type into
       the input, click the button, select the dropdown value) and observe the real
@@ -59,20 +80,46 @@
       like a row's action button elsewhere on the same page, even if earlier probing
       revealed that other button's behavior. Every actionable element gets its own
       real, independent probe — no exceptions, no analogies.
+   b3. **The recorded action must match the element type — a lesser action never
+      substitutes for the required one.** A text input requires typing into it, not
+      just clicking it — clicking only proves it's focusable, it proves nothing about
+      autocomplete/search/dropdown behavior. A dropdown requires actually selecting a
+      value, not just opening and closing it. A checkbox requires actually toggling
+      it, not just noting it exists. If you find yourself writing a conclusion like "it
+      doesn't do X" based on an action lighter than what that element type requires
+      (see `element-behavior-analysis.md` for the exact required action per type),
+      that conclusion is unearned — go back and perform the actual required action.
    c. **Opening a dialog is not a stopping point or something to defer — it's a
-      trigger to recurse.** If a button opens a dialog, analyze the dialog's full
-      contents using this same inventory-then-probe process before returning to the
-      parent inventory. Do not note "this opens a dialog" and move on without
-      actually opening and analyzing it, unless you've already covered an identical
-      dialog structure earlier in this same run.
+      trigger to recurse, and the task-tracking discipline from step a2 extends here
+      too.** If a button click opens a dialog/modal/popup, do the following immediately
+      before returning to the parent inventory:
+      i. Snapshot the dialog. Build a separate sub-inventory of every interactive
+         element inside it (buttons, inputs, tabs, close icon, etc.).
+      ii. If task tracking is in use, register each dialog element as its own new task
+          — same discipline as step a2. Dialog elements discovered mid-probing are
+          exactly the ones that get silently dropped without this.
+      iii. Probe every element in the dialog using the same rules (step 4b, b2, b3).
+          If a dialog element opens another dialog, recurse again.
+      iv. After probing, this dialog **must become its own generated component file**
+          (per `conventions.md` component structure), not just inline getters on the
+          parent page. The parent page object references the dialog component via its
+          opener method (e.g. `clickSettingsButton()` returns `SettingsDialog`).
+      v. Do not collapse this into "the dialog has a Save and a Cancel" and move on —
+         actually write the file. An analyzed dialog without a generated component file
+         is unfinished work.
+      Skip recursion only if you've already analyzed an identical dialog structure
+      (same component, same layout) earlier in this same run.
    d. Before moving to step 5, do a pass over your inventory from 4a and confirm every
       item has an actual observed result next to it (probed → outcome), not a blank or
       an inference. **Specifically check the Probe/action column of every actionable
       row — if it says "Observed" or is otherwise not a real action verb
       (Typed/Clicked/Selected/Hovered), that item is not actually done: go back and
-      probe it now, before writing any code.** There is no later step that revisits
-      this — an incomplete inventory presented as complete is worse than an honest
-      "still probing" state, because the person reading the summary will trust it.
+      probe it now, before writing any code.**
+   d1. **Also audit the side effects: for every element whose probe opened a dialog,
+      confirm a component file was actually generated for that dialog (per step 4c-iv).**
+      List each dialog and its corresponding output file. If a dialog was analyzed but
+      has no file, that work is not complete — generate the component now before
+      proceeding. There is no later step that revisits this.
    e. Then check each analyzed element against `component-registry.md`:
    - Matches an existing entry → use that class.
    - Doesn't match anything → create a new wrapper following `conventions.md`

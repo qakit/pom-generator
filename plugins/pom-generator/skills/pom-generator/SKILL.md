@@ -267,22 +267,38 @@ not a replacement for trying to locate the full file:
 
 1. List every interactive element in the snapshot before touching any of them —
    inputs, buttons, icon/svg-as-button, dropdowns, tabs, containers grouping them.
-2. Actually interact with each one (type into inputs, click buttons, select dropdown
-   values) and record the real observed result — never infer behavior from label/name
-   alone, and never infer one button's behavior from a different button's tested
-   behavior, even if they look similar or sit near each other. "Observed" (seen but
-   not interacted with) is only valid for genuinely static/non-clickable elements —
-   every button, checkbox, link, toggle, and tab must show a real action
-   (Typed/Clicked/Selected), never "Observed", in the final inventory.
-3. If a click opens a dialog: analyze the dialog's full contents the same way,
-   recursively, before returning to the parent list. Do not skip this because it seems
-   slower — this is the point of the exercise, not an optional extra.
-4. If a dropdown selection changes other elements, note the dependency and analyze
+   Re-scan specifically for easy-to-miss items: icon-only buttons with no label,
+   elements inside side panels/toolbars/filter bars — a container being listed does
+   not mean its children are listed too; they need their own lines.
+2. If a todo/task-tracking tool is available, register each item as its own task and
+   only mark it complete once actually probed — this catches silent skipping that
+   prose reminders alone have repeatedly failed to prevent on larger pages.
+3. Actually interact with each one, using the action that element type actually
+   requires — typing for text inputs (not just clicking; clicking alone proves
+   nothing about autocomplete/search behavior), clicking for buttons, selecting for
+   dropdowns, toggling for checkboxes. A lighter action never substitutes for the
+   required one. Record the real observed result — never infer behavior from
+   label/name alone, and never infer one element's behavior from a different
+   element's tested behavior, even if they look similar or sit near each other.
+   "Observed" (seen but not interacted with) is only valid for genuinely
+   static/non-clickable elements — every button, input, checkbox, link, toggle, and
+   tab must show a real action-based outcome, never "Observed", in the final
+   inventory.
+4. If a click opens a dialog: analyze the dialog's full contents the same way,
+   recursively, before returning to the parent list. Each dialog element gets its own
+   task (step 2). Do not skip this because it seems slower — this is the point of the
+   exercise, not an optional extra.
+5. After analyzing a dialog, it must become its own generated component file — not just
+   inline getters on the parent page. The parent references the dialog via its opener
+   method. An analyzed dialog without a generated component file is unfinished work.
+6. Before writing any code, audit: every element probed has a real outcome, and every
+   dialog that opened has a corresponding component file generated.
+7. If a dropdown selection changes other elements, note the dependency and analyze
    whatever it revealed the same way.
-5. Treat any container with a shared grouping signal (attribute, CSS class stem,
+8. Treat any container with a shared grouping signal (attribute, CSS class stem,
    `data-*` prefix, or just "this is clearly one visual unit") as its own component
    class — never flatten it into loose getters on the parent.
-6. Don't write the final file until every item from step 1 has a real recorded outcome.
+9. Don't write the final file until every item from step 1 has a real recorded outcome.
 
 ### Login handling
 

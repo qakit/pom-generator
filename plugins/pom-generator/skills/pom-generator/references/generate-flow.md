@@ -47,6 +47,11 @@ Procedure:
       inventory for this step's revealed content and actually probe every item in it
       before writing the wrapper — same rule as `generate-single.md` step 4, this is
       not optional and not satisfied by a static read of the snapshot.
+   d1. **If probing this step's elements opens additional dialogs, each dialog becomes
+      its own separate generated component file** — see `generate-single.md` step 4c.
+      Do not note "this also opens a dialog" and skip it. Register dialog elements as
+      tasks, probe them, and generate the component file before continuing to the next
+      flow step.
    e. Self-verify this step's generated wrapper (per `element-behavior-analysis.md`)
       before showing it.
    f. **Stop. Show the file. Wait for confirmation before the next step.**
