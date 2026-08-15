@@ -112,7 +112,26 @@ document, and it silently couples the component to one page.
 
 Page-level elements that genuinely belong to no component use `this.page`.
 
-## E8. Locators are cross-checked, never delegated
+## E8. Every selector is grounded against the page it describes
+
+A selector is a claim, and `Resolves:` is the page's answer to it — the match count returned by
+the grounding pass (`03-toolbelt.md`), recorded verbatim. `0` means the selector describes nothing
+here; more than `1` means the wrapper will silently take the first of several.
+
+Neither is a formatting problem. Both mean the string was written from somewhere other than this
+page: from memory, from a similar control elsewhere in the app, or — most often — from a
+`component-registry.md` entry that matched on appearance. A registry match is a hypothesis about
+which class wraps this element. **It is never a source of selectors.**
+
+`Selector:` holds the raw string, in no language. `Locator:` holds the expression that reaches the
+generated file. The split is what lets one `browser_evaluate` check a Python project's selectors
+and a TypeScript project's identically, and W007 keeps the two from drifting apart.
+
+The same applies to geometry. `Box:` is measured, and V072 checks the screenshot filed against it
+really is that size, because a crop of the wrong node still produces a perfectly good-looking image
+— and every description written from it is then wrong in a way nothing downstream can see.
+
+## E9. Locators are cross-checked, never delegated
 
 Author the locator from `conventions.md`'s priority order, then ask
 `browser_generate_locator` for Playwright's opinion and record it in `Locator-pw`.
@@ -125,7 +144,7 @@ surface as a warning.
 
 Never invent a `Locator-pw` value. If the tool is unavailable, say so in `Meta.Tools-degraded`.
 
-## E9. Naming comes from behaviour, not from appearance
+## E10. Naming comes from behaviour, not from appearance
 
 The method name describes what the element *does*, established by the probe:
 
@@ -139,7 +158,7 @@ Casing and prefixes follow `conventions.md` — camelCase for TS/JS, snake_case 
 whatever getter/action prefixes the project already uses. The project's convention always wins
 over the shapes suggested in the catalog.
 
-## E10. Effort is proportional to what is at stake
+## E11. Effort is proportional to what is at stake
 
 Every element carries a `Tier:` (`02-artifact-schema.md`), and the tiers exist because a flat
 per-element cost is what turns a page into a two-hour run that never reaches code generation. An
@@ -159,7 +178,7 @@ The invariant is not "be fast". It is:
 - **A budget overrun is reported, not absorbed.** Stopping at 1.5× with honest `pending` statuses
   beats an unbounded run, because the artifact is still usable and the user still has a decision.
 
-## E11. State-dependent elements are elements
+## E12. State-dependent elements are elements
 
 A clear (X) icon that exists only once text is typed, a validation message, a character counter, a
 "no results" state, a spinner — each is a real element with its own ID, discovered during probing

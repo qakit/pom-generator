@@ -22,28 +22,38 @@ validator at this directory directly, which would report V015 failures.
 ## Regions
 ### R-01 — Page header
 **Root:** `header[class*='_pageHeader_']`
+**Resolves:** 1
+**Box:** 0,0,1440,72
 **Shot:** ./screens/R-01.png
 **Contains:** E-01, E-09
 **Notes:** page-level, no component extracted
 
 ### R-02 — Filter panel
 **Root:** `div[class*='_filterPanel_']`
+**Resolves:** 1
+**Box:** 0,72,1440,64
 **Shot:** ./screens/R-02.png
 **Contains:** E-02, E-03
 
 ### R-03 — Employees table
 **Root:** `div[data-aid='employees-table']`
+**Resolves:** 1
+**Box:** 0,136,1140,700
 **Shot:** ./screens/R-03.png
 **Contains:** E-04
 
 ### R-04 — Create employee dialog
 **Root:** `div[role='dialog']`
+**Resolves:** 1
+**Box:** 420,180,600,420
 **Shot:** ./screens/R-04.png
 **Contains:** E-05, E-07
 **Component:** C-01
 
 ### R-05 — Status option list
 **Root:** `ul[role='listbox']`
+**Resolves:** 1
+**Box:** 120,140,220,160
 **Shot:** ./screens/R-05.png
 **Contains:** E-06, E-08
 **Component:** C-02
@@ -54,6 +64,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** large bold heading reading "Employees", top left of the content area
 **Snapshot-ref:** e11
 **DOM:** `h1[class*='_title_']` role=heading level=1
+**Selector:** `h1[class*='_title_']`
+**Resolves:** 1
+**Box:** 24,20,180,32
 **Kind:** static
 **Type:** other/text-label
 **Registry:** NEW
@@ -67,6 +80,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** pill-shaped control with a grey border and a chevron on the right, reads "All statuses"
 **Snapshot-ref:** e47
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
+**Selector:** `[data-aid='status-filter']`
+**Resolves:** 1
+**Box:** 24,84,180,40
 **Kind:** actionable
 **Type:** selection/single-select
 **Tier:** full
@@ -87,6 +103,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** solid blue button, white text, right-aligned in the filter bar
 **Snapshot-ref:** e52
 **DOM:** `button[data-aid='create']` role=button
+**Selector:** `[data-aid='create']`
+**Resolves:** 1
+**Box:** 1240,84,176,40
 **Kind:** actionable
 **Type:** actions/button
 **Tier:** full
@@ -107,6 +126,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** full-width table, 6 columns, zebra striping, 84 rows before filtering
 **Snapshot-ref:** e60
 **DOM:** `div[data-aid='employees-table']` role=table
+**Selector:** `[data-aid='employees-table']`
+**Resolves:** 1
+**Box:** 0,136,1140,700
 **Kind:** container
 **Type:** collections/table
 **Registry:** DataTable
@@ -120,6 +142,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** single-line bordered text box under a "Full name" label, first field in the dialog
 **Snapshot-ref:** e71
 **DOM:** `input[data-aid='full-name']` type=text
+**Selector:** `[data-aid='full-name']`
+**Resolves:** 1
+**Box:** 444,244,552,40
 **Kind:** actionable
 **Type:** inputs/text
 **Tier:** full
@@ -139,6 +164,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** second row of the opened option list, hover highlight, no checkmark
 **Snapshot-ref:** e49
 **DOM:** `li[role='option']` aria-selected=false
+**Selector:** `li[role='option']`
+**Resolves:** 4
+**Box:** 124,180,212,36
 **Kind:** actionable
 **Type:** selection/option
 **Tier:** class
@@ -159,6 +187,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** small grey X icon inside the right edge of the name field, only present once text is entered
 **Snapshot-ref:** e73
 **DOM:** `button[class*='_clear_']` role=button aria-label="Clear"
+**Selector:** `button[class*='_clear_']`
+**Resolves:** 1
+**Box:** 956,252,24,24
 **Kind:** actionable
 **Type:** actions/icon-button
 **Tier:** full
@@ -177,6 +208,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** third row of the same option list, identical shape and padding to the Active row
 **Snapshot-ref:** e50
 **DOM:** `li[role='option']` aria-selected=false
+**Selector:** `li[role='option']`
+**Resolves:** 4
+**Box:** 124,216,212,36
 **Kind:** actionable
 **Type:** selection/option
 **Tier:** class
@@ -194,6 +228,9 @@ validator at this directory directly, which would report V015 failures.
 **Visual:** small text link with a left chevron, above the page title
 **Snapshot-ref:** e09
 **DOM:** `a[href='/dashboard']` role=link
+**Selector:** `a[href='/dashboard']`
+**Resolves:** 1
+**Box:** 24,8,150,20
 **Kind:** actionable
 **Type:** actions/link
 **Tier:** evidence

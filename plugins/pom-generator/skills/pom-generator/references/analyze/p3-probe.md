@@ -111,7 +111,7 @@ Three things to check that are easy to skip:
 
 - **The element's own container.** A clear icon inside the input, a counter, a validation message,
   an icon that changed. These appear only in the acted-on state and are the most commonly missed
-  elements on any page (`rules/element.md` E11).
+  elements on any page (`rules/element.md` E12).
 - **The rest of the page.** Something enabled, hidden, repopulated, or re-counted elsewhere goes in
   `Affects:`.
 - **The console.** `browser_console_messages` — an error here explains a probe that appeared to do

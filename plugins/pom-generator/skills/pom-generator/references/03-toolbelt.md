@@ -43,6 +43,44 @@ gate and let the user decide, rather than fabricating a path.
 **Screenshots are read as images, not just saved.** A file written and never looked at contributes
 nothing. Every shot taken during survey and decomposition must actually be read.
 
+### The grounding pass
+
+One call, every selector, and it is the cheapest accuracy in the whole pipeline. Run it at the end
+of P1 (so region crops are taken against roots that are known to exist) and again at the end of P4
+(so the final selector set is checked as a set).
+
+```js
+// browser_evaluate
+(() => {
+  const ids = { "R-01": "header[data-aid='layout_header']",
+                "E-04": "[data-aid='status-filter']" /* ...every Root and Selector... */ };
+  const out = {};
+  for (const [id, sel] of Object.entries(ids)) {
+    let nodes = [];
+    try { nodes = [...document.querySelectorAll(sel)]; }
+    catch { out[id] = { error: 'invalid selector' }; continue; }
+    const r = nodes[0]?.getBoundingClientRect();
+    out[id] = {
+      resolves: nodes.length,
+      box: r ? [r.x + scrollX, r.y + scrollY, r.width, r.height].map(Math.round).join(',') : null,
+    };
+  }
+  return out;
+})()
+```
+
+Write `resolves` into `Resolves:` and `box` into `Box:` verbatim. Do not round a `0` up to a `1`
+because the element is obviously there — a zero is the finding (V044), and it means the selector
+was written from memory, from the component registry, or from a different page.
+
+**Ground before cropping, not after.** A region screenshot taken against an unverified root is how
+a crop of the page header ends up filed as the filter panel, with thirteen elements citing it as
+their visual evidence. V072 catches it afterwards; grounding first means it never happens.
+
+For XPath, swap `querySelectorAll` for `document.evaluate`. If `browser_evaluate` is unavailable,
+record it in `Meta.Tools-degraded` and say at the gate that the artifact is ungrounded — that is a
+real reduction in what the run can promise, not a detail.
+
 ### Inspecting
 
 | Purpose | Call |

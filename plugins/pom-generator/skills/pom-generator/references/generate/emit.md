@@ -63,7 +63,7 @@ For each manifest row, take everything from the artifact:
 | `Reveals: C-nn` | the opener method returns that component |
 | `Affects` | a note in the method's doc comment about what else changes |
 
-Method names come from observed behaviour, not labels (`rules/element.md` E9). A button labelled
+Method names come from observed behaviour, not labels (`rules/element.md` E10). A button labelled
 "Go" that applied filters is `applyFilters()`.
 
 Mark `blocked-*` elements with a comment saying what is unverified and why — a getter whose

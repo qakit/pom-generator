@@ -61,15 +61,34 @@ For each visual region, find its container node and record a `Root:` selector. P
 If a visual region has no single container node, say so in `Notes:` — that is a real finding, and
 it is what the decomposition phase needs to know.
 
-### 4. Region screenshots
+### 4. Ground the region roots
+
+Before taking a single crop, run the grounding pass from `03-toolbelt.md` over every `Root:`.
+Write what comes back into `Resolves:` and `Box:`.
+
+This step exists because the failure it prevents is silent. A `Root:` selector that was guessed
+rather than read — `_filtersContainer` when the page says `_filterContainer`, `_singleCheckboxes`
+when the panel is somewhere else entirely — still produces a screenshot. It is just a screenshot of
+the wrong thing, or of nothing, and every element filed under that region then cites it as visual
+evidence.
+
+- `Resolves: 0` → the selector is wrong. Fix it and re-ground. Do not crop.
+- `Resolves:` > 1 → the root is ambiguous; scope it.
+- A `Box:` taller than about twice the viewport → the "region" is a scroll container spanning the
+  whole document, and cropping it yields a tall image that is mostly blank. Pick the inner
+  container that actually bounds the visible area (W008).
+
+### 5. Region screenshots
 
 For each region: `browser_take_screenshot` with `target` set to the region root, saved as
 `screens/R-nn.png`. **Read each one.** This is where individual controls become legible — a
 full-page shot at 1440px wide will not show you that an input has an inline icon.
 
-Record in `Shot:`.
+Record in `Shot:`. V070 checks the file exists; V072 checks its dimensions against the `Box:` you
+just measured, so a crop that does not show what it is filed under fails the phase instead of
+quietly becoming the basis for a dozen element descriptions.
 
-### 5. Enumerate elements
+### 6. Enumerate elements
 
 For each region, list every element: every input, button, icon-button, dropdown, checkbox, tab,
 link, and every container that groups them. One `### E-nn` block per element, with `Region`,
@@ -85,7 +104,21 @@ Do not enumerate the cells of a repeating row as page elements. One row is a com
 cells are that component's accessors — see `rules/component.md` C7. Twenty rows × six cells is not
 an inventory of 120 elements.
 
-### 5a. Assign a tier, and find the equivalence classes
+### 7. Ground the elements
+
+Run the grounding pass again, this time over every element's `Selector:`, and write back
+`Resolves:` and `Box:`.
+
+`Selector:` is the raw CSS or XPath string and nothing else — no `this.element`, no language. The
+wrapper expression comes later, in `Locator:` at P4, and W007 checks that the two still agree.
+Keeping them separate is what lets this step work identically for a Python project.
+
+Same three outcomes as for regions, and the same rule: **a `Resolves: 0` is never rounded up.** It
+means the selector came from somewhere other than this page — memory, the component registry, or a
+similar-looking control elsewhere in the app. That is precisely the error worth catching, and it
+costs one tool call to catch every instance of it at once.
+
+### 8. Assign a tier, and find the equivalence classes
 
 Every `Kind: actionable` element gets a `Tier:` now (`02-artifact-schema.md`), because the Gate 1
 estimate is computed from it. This is the step that decides whether P3 takes twenty minutes or two
@@ -109,7 +142,7 @@ and a shared handler, not a shared shape.
 Budget arithmetic: `full` ≈ 10 tool calls, a class ≈ 10 for its representative plus 1 each after,
 `evidence` ≈ 0.
 
-### 6. The second sweep — this is not optional
+### 9. The second sweep — this is not optional
 
 Everything above finds the obvious elements. This step finds the ones that get missed, and the
 list is drawn from what has actually been missed before:
@@ -138,14 +171,14 @@ browser_press_key  Tab          — walk focus through the page; every stop is a
 The Tab walk is the strongest completeness check available, because the browser's own focus order
 enumerates exactly the set of things that are interactive.
 
-### 7. Register the queue
+### 10. Register the queue
 
 If a todo tool is available, register **one task per element**. Not one task called "analyze
 elements" — one per element, marked complete only when a real observed outcome exists.
 
 The artifact is the durable queue; the todo list is the working view of it. Both, not either.
 
-### 8. Validate
+### 11. Validate
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" --phase=survey .pom-generator/analysis/<slug>

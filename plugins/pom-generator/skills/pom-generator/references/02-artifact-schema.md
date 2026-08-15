@@ -55,7 +55,9 @@ One `### R-nn — Name` block per visually distinct area found during survey.
 | Field | Required | Value |
 |---|---|---|
 | `Root` | always | Backticked selector for the region's container |
-| `Shot` | always | Path to the region screenshot |
+| `Resolves` | always | How many nodes `Root` matched on the live page. See "Grounding" |
+| `Box` | always | `x,y,w,h` of `Root` in CSS pixels, as measured |
+| `Shot` | always | Path to the region screenshot. Must exist (V070) and match `Box` (V072) |
 | `Contains` | always | Comma-separated `E-nn` IDs. Must be non-empty |
 | `Component` | when applicable | `C-nn` if this region is a component revealed during probing |
 | `Notes` | optional | Free text |
@@ -71,6 +73,9 @@ what lets the same validator gate every checkpoint.
 | `Visual` | survey | What it looks like, taken from the screenshot — shape, colour, iconography, position. Written *before* the DOM is consulted |
 | `Snapshot-ref` | survey | The accessibility snapshot ref (`e47`) |
 | `DOM` | survey | Backticked tag/selector plus role and relevant aria/data attributes |
+| `Selector` | survey | Backticked raw selector — CSS or XPath, no language. This is the string that gets grounded |
+| `Resolves` | survey | How many nodes `Selector` matched on the live page. See "Grounding" |
+| `Box` | survey | `x,y,w,h` in CSS pixels, as measured |
 | `Kind` | survey | `actionable` \| `static` \| `container` |
 | `Type` | survey | A type id from `catalog/index.md` |
 | `Tier` | survey (actionable only) | `full` \| `class` \| `evidence` — how much evidence this element's conclusion may rest on. See below |
@@ -88,6 +93,38 @@ what lets the same validator gate every checkpoint.
 | `Locator-pw` | classified | What `browser_generate_locator` returned |
 | `Locator-agree` | classified | `yes`, or `no — <reason>` |
 | `Notes` | optional | Free text |
+
+### Grounding
+
+Every other field in this schema is a description. `Selector`, `Resolves` and `Box` are the three
+that can be *checked*, and they exist because a fabricated selector is otherwise indistinguishable
+from a real one until the generated code fails — which is much later and much more expensive.
+
+**`Selector` is language-neutral on purpose.** It holds the raw CSS or XPath string;
+`Locator` holds the expression that gets written into the wrapper, in whatever language the
+project uses (`this.element.locator(...)`, `self.element.locator(...)`). One is checkable against
+a DOM by anything that can parse a DOM; the other is checkable only by a type-checker. Keeping
+them apart is what lets the grounding pass work for a Python project and a TypeScript one alike.
+
+W007 fires when `Locator` passes a raw selector string that isn't the one `Selector` grounded — the
+case where a selector gets copied out of `component-registry.md` and into generated code without
+ever having touched the page. A role- or label-based locator is exempt: it is a different
+expression of the same node, which is what `Locator-pw` is for.
+
+**`Resolves` is the match count the page gave back.** Not an estimate, not a expectation — the
+number the run got when it asked. `0` is V044: the selector describes nothing on the page it
+claims to come from. Greater than `1` is V045 unless the element is a `container` or carries a
+`Class:`, because an ambiguous selector generates a wrapper that silently picks the first match.
+
+**`Box` is what makes "read the screenshot" enforceable.** It is the element's measured geometry,
+and V072 checks the referenced PNG's pixel dimensions against it (allowing for device pixel ratio).
+A crop of the wrong node, or of a node whose bounding box spans the entire scroll height, produces
+an image that does not show what its caption claims — and every conclusion drawn from that image is
+unfounded, invisibly. W008 additionally flags a region taller than twice the viewport: technically
+a correct crop, practically an unreadable one, and a sign the region needs decomposing.
+
+Both come from one `browser_evaluate` over the whole selector list, not one call per element —
+see `03-toolbelt.md`.
 
 ### Tiers
 
@@ -124,6 +161,9 @@ icon buttons in the same toolbar routinely do unrelated things.
 **Visual:** pill-shaped control, grey border, chevron on the right, reads "All statuses"
 **Snapshot-ref:** e47
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
+**Selector:** `[data-aid='status-filter']`
+**Resolves:** 1
+**Box:** 24,84,180,40
 **Kind:** actionable
 **Type:** selection/single-select
 **Tier:** full
@@ -234,6 +274,12 @@ Each rule applies from the phase listed and at every later phase.
 | V040 | classified | Every `Locator:` on an element belonging to a component starts with `this.element` |
 | V041 | classified | No `Locator:` inside a component contains `page.` |
 | V042 | classified | `Locator-agree: no` is followed by ` — ` and a reason |
+| V043 | survey | `Resolves:` is a whole number — the count the live page returned |
+| V044 | survey | `Resolves: 0` — the selector matched nothing on the page it describes |
+| V045 | survey | `Resolves:` > 1 requires `Kind: container` or a `Class:`; an ambiguous selector silently picks the first match |
+| V070 | survey | Every region's `Shot:` file exists on disk |
+| V071 | survey | `Box:` parses as `x,y,w,h` with a positive width and height |
+| V072 | survey | The screenshot's pixel dimensions match its `Box:` at some device pixel ratio |
 | V050 | decomposed | Every component-tree entry not marked `[REUSE]` has an output-manifest row |
 | V051 | survey | Every region's `Contains:` is non-empty |
 | V052 | decomposed | Every element belongs to a component or is explicitly listed as page-level in the tree |
@@ -249,6 +295,8 @@ Each rule applies from the phase listed and at every later phase.
 | W004 | A region contains more than 15 elements — it probably needs decomposing further |
 | W005 | An element has `Registry: NEW` but its `DOM:` closely matches an existing registry entry |
 | W006 | `Meta.Spent` exceeds the `Meta.Budget` approved at Gate 1 |
+| W007 | `Locator:` selects on a raw string that `Selector:` did not ground |
+| W008 | A region's `Box:` is more than twice the viewport height — the crop is unreadable and the region needs decomposing |
 
 ### Output
 

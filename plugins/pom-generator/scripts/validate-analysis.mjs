@@ -34,15 +34,16 @@ const META_FIELDS = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase',
   'Conventions', 'Tools-degraded', 'Budget', 'Spent', 'Notes'];
 const META_REQUIRED = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase'];
 
-const REGION_FIELDS = ['Root', 'Shot', 'Contains', 'Component', 'Notes'];
-const REGION_REQUIRED = ['Root', 'Shot', 'Contains'];
+const REGION_FIELDS = ['Root', 'Resolves', 'Box', 'Shot', 'Contains', 'Component', 'Notes'];
+const REGION_REQUIRED = ['Root', 'Resolves', 'Box', 'Shot', 'Contains'];
 
-const ELEMENT_FIELDS = ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Kind', 'Type', 'Tier',
-  'Class', 'Class-ref', 'Status',
+const ELEMENT_FIELDS = ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
+  'Kind', 'Type', 'Tier', 'Class', 'Class-ref', 'Status',
   'Probe', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
   'Registry', 'Locator', 'Locator-pw', 'Locator-agree', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
-  survey: ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Kind', 'Type', 'Status'],
+  survey: ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
+    'Kind', 'Type', 'Status'],
   probed: ['Probe', 'Observed'],
   classified: ['Registry', 'Locator'],
 };
@@ -76,6 +77,15 @@ const TIERS = ['full', 'class', 'evidence'];
  */
 const MUST_INTERACT = ['inputs', 'selection', 'temporal', 'collections'];
 
+/**
+ * Element screenshots come back at the browser's device pixel ratio, so a box measured in CSS
+ * pixels and a file measured in device pixels differ by a whole-number scale. Accept any of
+ * these, with slack for the margin some capture paths add around the element.
+ */
+const DEVICE_SCALES = [1, 2, 3];
+const BOX_TOLERANCE = 0.08;
+const BOX_SLACK_PX = 8;
+
 const DIALOGISH = /\b(dialog|modal|drawer|popup|popover|sheet|lightbox)\b/i;
 const LISTISH = /\b(dropdown|listbox|menu|autocomplete|suggestion|typeahead|combobox list)\b/i;
 
@@ -105,6 +115,12 @@ const RULE_DESC = {
   V040: 'locator must be rooted at this.element or this.page',
   V041: 'locator must not reach the page from inside a component',
   V042: 'locator disagreement must state a reason',
+  V043: 'Resolves must be a match count taken from the live page',
+  V044: 'selector matched nothing on the page it was taken from',
+  V045: 'selector is ambiguous and nothing explains why',
+  V070: 'region screenshot must exist on disk',
+  V071: 'Box must be four numbers describing a rendered element',
+  V072: 'screenshot does not match the box it claims to show',
   V050: 'component tree entry must have an output manifest row',
   V051: 'region must contain at least one element',
   V052: 'every region must be accounted for in the component tree',
@@ -115,7 +131,50 @@ const RULE_DESC = {
   W004: 'region is large enough that it probably needs decomposing',
   W005: 'marked NEW although the same type is wrapped elsewhere',
   W006: 'the run spent more than the budget approved at Gate 1',
+  W007: 'the locator does not contain the selector it was grounded from',
+  W008: 'region crop is too tall to read anything in',
 };
+
+// ------------------------------------------------------------------ geometry
+
+/**
+ * A PNG's dimensions live in the IHDR chunk, which is always first: 8-byte signature, then a
+ * 4-byte length, "IHDR", then width and height as big-endian uint32. That is all this needs,
+ * so there is no decoding and no dependency.
+ *
+ * Returns null for anything that is not a readable PNG — a missing or truncated file is
+ * V015/V070's problem, not this one's.
+ */
+function pngSize(path) {
+  let buf;
+  try {
+    buf = readFileSync(path);
+  } catch {
+    return null;
+  }
+  if (buf.length < 24) return null;
+  if (buf.readUInt32BE(0) !== 0x89504e47 || buf.readUInt32BE(4) !== 0x0d0a1a0a) return null;
+  if (buf.toString('latin1', 12, 16) !== 'IHDR') return null;
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
+
+/** `x,y,w,h` in CSS pixels. Fractional values are normal — layout is not integral. */
+function parseBox(value) {
+  const parts = String(value || '').split(',').map((s) => Number.parseFloat(s.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [x, y, w, h] = parts;
+  return { x, y, w, h };
+}
+
+/** True when `file` could plausibly be a capture of `box` at some device pixel ratio. */
+function boxMatchesImage(box, img) {
+  return DEVICE_SCALES.some((s) => {
+    const ew = box.w * s;
+    const eh = box.h * s;
+    return Math.abs(img.w - ew) <= Math.max(BOX_SLACK_PX, ew * BOX_TOLERANCE)
+      && Math.abs(img.h - eh) <= Math.max(BOX_SLACK_PX, eh * BOX_TOLERANCE);
+  });
+}
 
 // ---------------------------------------------------------------- parsing
 
@@ -328,9 +387,87 @@ export function validateContent(content, opts = {}) {
   );
   const treeText = doc.tree.map((t) => `${t.className} ${t.path} ${t.marker} ${t.note}`).join('\n');
 
+  /**
+   * A selector is a claim about the page, and `Resolves:` is what turns it into a checkable
+   * one: the count the run got back when it asked the live page how many nodes this matches.
+   * Without it, a fabricated selector is indistinguishable from a real one until the generated
+   * code fails — which is much later and much more expensive.
+   *
+   * Returns the parsed count so callers can use it.
+   */
+  const checkResolves = (o, selectorField) => {
+    const raw = fv(o, 'Resolves');
+    if (raw === undefined) return null;
+    if (!/^\d+$/.test(raw.trim())) {
+      err('V043', fl(o, 'Resolves'), o.id, `Resolves must be a whole match count, got "${raw}"`);
+      return null;
+    }
+    const n = Number.parseInt(raw, 10);
+    if (n === 0) {
+      err('V044', fl(o, selectorField), o.id,
+        `${selectorField} matched nothing — it was not taken from the page it describes`);
+    }
+    return n;
+  };
+
+  /** Geometry the run measured. A zero-sized box means the element never rendered. */
+  const checkBox = (o) => {
+    const raw = fv(o, 'Box');
+    if (raw === undefined) return null;
+    const box = parseBox(raw);
+    if (!box) {
+      err('V071', fl(o, 'Box'), o.id, `Box must be "x,y,w,h", got "${raw}"`);
+      return null;
+    }
+    if (box.w <= 0 || box.h <= 0) {
+      err('V071', fl(o, 'Box'), o.id,
+        `Box is ${box.w}x${box.h} — a zero-sized element was not on screen when it was measured`);
+      return null;
+    }
+    return box;
+  };
+
+  /**
+   * The check that makes "read the screenshot" enforceable. A crop of the wrong node, or of a
+   * node whose bounding box spans the whole scroll height, produces an image that does not
+   * show what its caption says — and every conclusion drawn from it is then unfounded.
+   */
+  const checkShotGeometry = (o, shotField, path, box) => {
+    if (!box) return;
+    const img = pngSize(path);
+    if (!img) return; // not a readable PNG; existence is V015/V070's job
+    if (!boxMatchesImage(box, img)) {
+      err('V072', fl(o, shotField), o.id,
+        `${shotField} is ${img.w}x${img.h}px but Box says ${Math.round(box.w)}x${Math.round(box.h)} — `
+        + 'the image does not show the element it is filed under');
+    }
+  };
+
+  const viewportH = Number.parseInt((fv(doc.meta, 'Viewport') || '').split('x')[1], 10);
+
   for (const r of doc.regions) {
     for (const name of REGION_REQUIRED) {
       if (!r.fields.has(name)) err('V003', r.line, r.id, `missing required field "${name}"`);
+    }
+    checkResolves(r, 'Root');
+    const box = checkBox(r);
+
+    // ---- V070 / V072
+    const shot = fv(r, 'Shot');
+    if (shot) {
+      const p = isAbsolute(shot) ? shot : join(dir, shot);
+      if (!existsSync(p)) {
+        err('V070', fl(r, 'Shot'), r.id, `region screenshot not found: ${shot}`);
+      } else {
+        checkShotGeometry(r, 'Shot', p, box);
+      }
+    }
+
+    // ---- W008
+    if (box && Number.isFinite(viewportH) && box.h > viewportH * 2) {
+      warn('W008', fl(r, 'Box'), r.id,
+        `region is ${Math.round(box.h)}px tall against a ${viewportH}px viewport — `
+        + 'the crop is mostly whitespace and nothing in it is legible; decompose it');
     }
   }
 
@@ -383,6 +520,15 @@ export function validateContent(content, opts = {}) {
       if (type === 'other/unknown' || (type.startsWith('other/') && catalog && !catalog.has(type))) {
         warn('W003', fl(e, 'Type'), e.id, `unmatched type "${type}" — candidate for a catalog entry`);
       }
+    }
+
+    // ---- V043 / V044 / V045
+    const resolves = checkResolves(e, 'Selector');
+    const elBox = checkBox(e);
+    if (resolves !== null && resolves > 1
+        && !fv(e, 'Class') && kind !== 'container') {
+      err('V045', fl(e, 'Selector'), e.id,
+        `Selector matches ${resolves} nodes — scope it, or declare the group with Class:`);
     }
 
     // ---- V019
@@ -481,6 +627,9 @@ export function validateContent(content, opts = {}) {
           for (const s of shots) {
             const p = isAbsolute(s) ? s : join(dir, s);
             if (!existsSync(p)) err('V015', fl(e, 'Shots'), e.id, `screenshot not found: ${s}`);
+            // the "before" shot is the element in its baseline state, so it is the one the
+            // box was measured against; the "after" shot may legitimately differ in size
+            else if (s === shots[0]) checkShotGeometry(e, 'Shots', p, elBox);
           }
         }
         if (!(fv(e, 'Reset') || '').trim()) {
@@ -538,6 +687,24 @@ export function validateContent(content, opts = {}) {
           err('V041', fl(e, 'Locator'), e.id, 'reaches the page from inside a component');
         }
       }
+      // ---- W007
+      // `Selector:` was checked against the live page; `Locator:` is what actually gets
+      // written into the wrapper. When the second stops containing the first, the grounding
+      // no longer covers the thing being generated — which is exactly how a selector copied
+      // out of the component registry ends up in code without ever touching the page.
+      // A role- or label-based locator is a different expression of the same node, not an
+      // ungrounded one — that is what Locator-pw exists to record. Only a raw selector string
+      // passed to locator() makes a claim that Selector: was supposed to have checked.
+      const sel = (fv(e, 'Selector') || '').replace(/^`|`$/g, '').trim();
+      const locRaw = (fv(e, 'Locator') || '').replace(/^`|`$/g, '').trim();
+      const norm = (s) => s.replace(/["']/g, '"').replace(/\s+/g, '');
+      const args = [...locRaw.matchAll(/\.locator\(\s*(['"])([\s\S]*?)\1/g)].map((m) => m[2]);
+      if (sel && args.length
+          && !args.some((a) => norm(a).includes(norm(sel)) || norm(sel).includes(norm(a)))) {
+        warn('W007', fl(e, 'Locator'), e.id,
+          `Locator selects on ${args[0].slice(0, 30)} but Selector: grounded ${sel.slice(0, 30)}`);
+      }
+
       const agree = fv(e, 'Locator-agree');
       if (agree !== undefined && /^no\b/.test(agree)) {
         if (!/\s[—–-]\s\S/.test(agree)) {
@@ -703,6 +870,17 @@ const MUTATIONS = [
   ['V041', '**Locator:** `this.element.locator("[data-aid=\'create\']")`',
     '**Locator:** `this.element.locator(page.url())`'],
   ['V042', '**Locator-agree:** no — project convention is data-aid first', '**Locator-agree:** no'],
+  ['V043', "**Selector:** `[data-aid='create']`\n**Resolves:** 1",
+    "**Selector:** `[data-aid='create']`\n**Resolves:** several"],
+  ['V044', "**Selector:** `[data-aid='full-name']`\n**Resolves:** 1",
+    "**Selector:** `[data-aid='full-name']`\n**Resolves:** 0"],
+  ['V045', "**Selector:** `button[class*='_clear_']`\n**Resolves:** 1",
+    "**Selector:** `button[class*='_clear_']`\n**Resolves:** 2"],
+  ['V070', '**Shot:** ./screens/R-03.png', '**Shot:** ./screens/gone.png'],
+  ['V071', '**Box:** 0,72,1440,64', '**Box:** 0,72,1440'],
+  // the fixture's R-04 crop is generated at 600x420; claiming a taller box makes the image
+  // stop matching what it is filed under, which is the R-05-shows-the-header failure
+  ['V072', '**Box:** 420,180,600,420', '**Box:** 420,180,600,900'],
   ['V050', '| src/components/CreateEmployeeDialog.ts | CreateEmployeeDialog | component | planned |\n', ''],
   ['V051', '**Contains:** E-04', '**Contains:** '],
   ['V052', '(R-02)', '(no region)'],
@@ -745,14 +923,74 @@ function catalogSelfCheck() {
  * a pile of empty .png placeholders, build a throwaway copy of the fixture in a temp
  * directory with the referenced files created on the fly. The repo keeps one file.
  */
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+
+const crc32 = (buf) => {
+  let c = -1;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+};
+
+/**
+ * A PNG signature plus a well-formed IHDR chunk and nothing else. No image viewer will open
+ * it, which is fine: the only consumer is `pngSize`, and what the self-test needs is a file
+ * that truthfully reports a width and a height so V072 can be exercised for real rather than
+ * asserted against a stub that always skips.
+ */
+function pngHeaderOnly(w, h) {
+  const ihdr = Buffer.alloc(17);
+  ihdr.write('IHDR', 0, 'latin1');
+  ihdr.writeUInt32BE(w, 4);
+  ihdr.writeUInt32BE(h, 8);
+  ihdr[12] = 8;   // bit depth
+  ihdr[13] = 6;   // colour type: RGBA
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(13, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(ihdr), 0);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    len, ihdr, crc,
+  ]);
+}
+
+/**
+ * V015 and V070 check that an artifact's screenshots exist, and V072 checks that they are the
+ * size their `Box:` claims. Rather than committing a pile of binary placeholders, build a
+ * throwaway copy of the fixture in a temp directory with header-only PNGs generated at the
+ * sizes the fixture declares. The repo keeps one file.
+ */
 function materializeFixture() {
   const src = join(FIXTURES, 'valid', 'analysis.md');
   if (!existsSync(src)) return null;
   const content = readFileSync(src, 'utf8');
   const dir = mkdtempSync(join(tmpdir(), 'pom-selftest-'));
   mkdirSync(join(dir, 'screens'), { recursive: true });
+
+  // map each screenshot to the box of the block that references it
+  const sizes = new Map();
+  for (const block of content.split(/^### /m).slice(1)) {
+    const box = parseBox((block.match(/^\*\*Box:\*\* (.+)$/m) || [])[1]);
+    if (!box) continue;
+    // Shots lists before then after; the before shot is the one measured against the box
+    const shots = (block.match(/^\*\*Shots?:\*\* (.+)$/m) || [])[1];
+    if (!shots) continue;
+    const first = shots.split(',')[0].trim().match(/([A-Za-z0-9._-]+)$/);
+    if (first) sizes.set(first[1], box);
+  }
+
   for (const m of content.matchAll(/\.\/screens\/([A-Za-z0-9._-]+)/g)) {
-    writeFileSync(join(dir, 'screens', m[1]), '');
+    const box = sizes.get(m[1]);
+    writeFileSync(join(dir, 'screens', m[1]),
+      box ? pngHeaderOnly(Math.round(box.w), Math.round(box.h)) : Buffer.alloc(0));
   }
   writeFileSync(join(dir, 'analysis.md'), content);
   return { dir, content };

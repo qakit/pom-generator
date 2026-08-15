@@ -50,8 +50,21 @@ Inside a component, everything is relative to `this.element`. Page-level element
 A `page.`-rooted locator inside a component fails validation (V040, V041) because it breaks reuse
 and couples the component to one page.
 
-Follow `conventions.md` for the attribute priority order — if this project puts `data-aid` first,
-that beats a role-based locator even when the role would work.
+Follow `conventions.md` for the attribute priority order — and take it from `conventions.md`, not
+from this document. `data-aid` is one project's answer; another uses `data-testid`, `data-qa`, a
+plain `id`, or a name attribute. The survey recorded which attributes this app actually carries;
+that plus the project's own convention decides, and neither is assumed here.
+
+**`Selector:` and `Locator:` are different fields and both matter.** `Selector:` is the raw string
+the grounding pass checked against the page. `Locator:` is the expression that goes into the
+wrapper, in the project's language, rooted per the rule above. When you write `Locator:`, it must
+still select on what `Selector:` grounded — W007 fires when it does not, which is the shape of
+copying a selector out of `component-registry.md` into generated code without it ever having
+touched this page.
+
+If authoring the locator makes you change the selector — a shorter path, a better attribute —
+change `Selector:` too and re-ground in step 5. A locator that was never grounded is exactly the
+thing this pipeline exists to prevent.
 
 ## 4. Cross-check with Playwright
 
@@ -75,7 +88,21 @@ Disagreement is information, not a defect to smooth over. It usually means one o
 It surfaces as warning W002 so the user sees it. Never invent a `Locator-pw`; if the tool is
 unavailable, say so in `Meta.Tools-degraded` and omit the field.
 
-## 5. Confirm the locator visually
+## 5. Re-ground the final selector set
+
+Selectors changed during this phase: shortened, re-rooted, replaced with a better attribute. Run
+the grounding pass from `03-toolbelt.md` once more over the final set and write back `Resolves:`
+and `Box:`.
+
+Once at the end of P1 and once here is enough — two tool calls for the whole run. What they buy is
+that no selector reaches `/pom-generate` without the page having confirmed it exists and is
+unambiguous (V043–V045).
+
+`Resolves: 0` here means the locator you just authored is fiction. `Resolves:` above 1 on anything
+that is not a container or a declared class means the wrapper will silently take the first match.
+Fix both; do not record them and move on.
+
+## 6. Confirm the locator visually
 
 For each locator, before trusting it:
 
@@ -87,14 +114,11 @@ browser_hide_highlight
 
 **Read the screenshot** and confirm the highlight is on the element you meant.
 
-This catches the failure that neither compilation nor a resolves/does-not-resolve check will: a
-selector that resolves perfectly well *to the wrong element*. It is cheap and it is the strongest
-evidence available at this stage.
+This catches the one failure grounding cannot: a selector that resolves perfectly well, to exactly
+one node, *which is the wrong node*. `Resolves: 1` proves a selector is real and unambiguous; it
+says nothing about whether it points at the control you described. Only looking does.
 
-Zero matches and multiple ambiguous matches are both failures — fix the locator, do not note it and
-move on.
-
-## 6. Delta, on a re-analysis
+## 7. Delta, on a re-analysis
 
 If this run started from an existing artifact, write `## Delta` directly after `## Meta`:
 
@@ -112,7 +136,7 @@ Compare by name and DOM signature, not by ID. Removed elements keep their IDs wi
 
 `/pom-generate` reads this to regenerate only affected files.
 
-## 7. Validate and report
+## 8. Validate and report
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" .pom-generator/analysis/<slug>
