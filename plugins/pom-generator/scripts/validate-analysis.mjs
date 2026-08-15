@@ -31,7 +31,7 @@ const phaseAtLeast = (current, required) =>
 const SECTIONS = ['Meta', 'Regions', 'Elements', 'Component tree', 'Output manifest'];
 
 const META_FIELDS = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase',
-  'Conventions', 'Tools-degraded', 'Budget', 'Spent', 'Notes'];
+  'Conventions', 'Selector-strategy', 'Tools-degraded', 'Budget', 'Spent', 'Notes'];
 const META_REQUIRED = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase'];
 
 const REGION_FIELDS = ['Root', 'Resolves', 'Box', 'Shot', 'Contains', 'Component', 'Notes'];
@@ -40,7 +40,7 @@ const REGION_REQUIRED = ['Root', 'Resolves', 'Box', 'Shot', 'Contains'];
 const ELEMENT_FIELDS = ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM',
   'Selector', 'Resolves', 'Box',
   'Kind', 'Type', 'Tier', 'Class', 'Class-ref', 'Status',
-  'Probe', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
+  'Probe', 'Value-source', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
   'Registry', 'Locator', 'Locator-pw', 'Locator-agree', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
   survey: ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
@@ -105,6 +105,36 @@ const PAGE_SCOPE = 'page';
  */
 const ROOT_RE = /^(this|self)\.([A-Za-z_]\w*)/;
 
+/** Where a typed probe value came from. See `05-probe-values.md`. */
+const VALUE_SOURCES = ['page-data', 'constraint', 'label', 'synthetic'];
+
+/**
+ * Controls that match user input against real data. A synthetic token searches for something
+ * that by construction does not exist, so the probe observes an empty state and learns nothing
+ * about the populated one — which is the state a wrapper has to support.
+ */
+const MATCHING_TYPES = ['inputs/search', 'inputs/autocomplete'];
+
+/**
+ * Values a framework mints at runtime or a bundler mints at build time. They look like perfectly
+ * good hooks in a single snapshot and differ on the next load or the next deploy, which makes
+ * them the one selector defect that gets past grounding, compilation and a first green run.
+ *
+ * The authority is still the reload comparison in `04-selectors.md` S1; this is the shortcut for
+ * the shapes that are recognisable on sight.
+ */
+const GENERATED_SELECTOR = [
+  // `#:r7:` or, CSS-escaped as it must be to be a legal selector, `#\:r7\:`. Anchored on the
+  // preceding character and length-bounded so ordinary pseudo-classes (`input:required:invalid`)
+  // are not mistaken for it.
+  [/(?:^|[#'"[=\s])\\?:r[0-9a-z]{1,4}\\?:/i, 'a React useId value'],
+  [/react-aria[-_0-9]/i, 'a React Aria generated id'],
+  [/\b(radix|headlessui|mui|chakra|ember)[-_][0-9a-z]{3,}/i, 'a component-library generated id'],
+  [/\.(css|sc|emotion)-[a-z0-9]{5,}/i, 'a CSS-in-JS generated class'],
+  // an exact CSS-module class including its build hash, rather than the authored stem
+  [/\._[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_-]{4,8}\b/, 'a CSS-module class including its build hash'],
+];
+
 const DIALOGISH = /\b(dialog|modal|drawer|popup|popover|sheet|lightbox)\b/i;
 const LISTISH = /\b(dropdown|listbox|menu|autocomplete|suggestion|typeahead|combobox list)\b/i;
 
@@ -140,6 +170,7 @@ const RULE_DESC = {
   V046: 'Scope must resolve to the page, a region, or a container',
   V047: 'scope chain must reach the page without looping',
   V048: 'an element can only be scoped inside a container in its own region',
+  V049: 'a typed probe must record where its value came from',
   V070: 'region screenshot must exist on disk',
   V071: 'Box must be four numbers describing a rendered element',
   V072: 'screenshot does not match the box it claims to show',
@@ -155,6 +186,8 @@ const RULE_DESC = {
   W006: 'the run spent more than the budget approved at Gate 1',
   W007: 'the locator does not contain the selector it was grounded from',
   W008: 'region crop is too tall to read anything in',
+  W009: 'a matching control was probed with a value that cannot match',
+  W010: 'selector rests on a value the framework generates',
 };
 
 // ------------------------------------------------------------------ geometry
@@ -588,6 +621,16 @@ export function validateContent(content, opts = {}) {
       }
     }
 
+    // ---- W010
+    const selRaw = (fv(e, 'Selector') || '').replace(/^`|`$/g, '');
+    for (const [re, what] of GENERATED_SELECTOR) {
+      if (re.test(selRaw)) {
+        warn('W010', fl(e, 'Selector'), e.id,
+          `Selector rests on ${what} — reload the page and compare before trusting it`);
+        break;
+      }
+    }
+
     // ---- V043 / V044 / V045
     const resolves = checkResolves(e, 'Selector');
     const elBox = checkBox(e);
@@ -686,6 +729,29 @@ export function validateContent(content, opts = {}) {
       if (observed.length < 20) {
         err('V012', fl(e, 'Observed'), e.id,
           `observation too thin to be a real result (${observed.length} chars)`);
+      }
+
+      // ---- V049 / W009
+      // A typed value is an experiment, and where it came from is what makes the result mean
+      // anything. See `05-probe-values.md`.
+      if (verb === 'Typed') {
+        const source = fv(e, 'Value-source');
+        if (source === undefined) {
+          err('V049', fl(e, 'Probe'), e.id,
+            'a typed value needs Value-source: page-data, constraint, label, or synthetic');
+        } else if (!VALUE_SOURCES.includes(source)) {
+          err('V049', fl(e, 'Value-source'), e.id,
+            `Value-source must be one of ${VALUE_SOURCES.join(', ')}`);
+        } else if (source === 'synthetic') {
+          // "it filters something" is the observable definition of a matching control, and it
+          // is more reliable than the declared type
+          const filters = MATCHING_TYPES.includes(type)
+            || (String(type).startsWith('inputs/') && list(fv(e, 'Affects')).length > 0);
+          if (filters) {
+            warn('W009', fl(e, 'Value-source'), e.id,
+              'a synthetic value cannot match real data — use a value taken from the page');
+          }
+        }
       }
       // An evidence-tier element performed no action, so there is no before/after pair to
       // take and no state to put back. Everything else owes both.
@@ -965,6 +1031,7 @@ const MUTATIONS = [
   // scoped inside a leaf control rather than a container
   ['V048', '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** R-04',
     '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** E-05'],
+  ['V049', '**Probe:** Typed "Rivera"\n**Value-source:** page-data', '**Probe:** Typed "Rivera"'],
   ['V070', '**Shot:** ./screens/R-03.png', '**Shot:** ./screens/gone.png'],
   ['V071', '**Box:** 0,72,1440,64', '**Box:** 0,72,1440'],
   // the fixture's R-04 crop is generated at 600x420; claiming a taller box makes the image

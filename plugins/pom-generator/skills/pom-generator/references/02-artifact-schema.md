@@ -40,6 +40,7 @@ One file per page. Flows link several of these together; they do not merge them.
 | `Baseline` | always | Path to the full-page baseline screenshot |
 | `Phase` | always | `survey` \| `decomposed` \| `probed` \| `classified` \| `generated` |
 | `Conventions` | optional | Marker for which `conventions.md` version this was analyzed against |
+| `Selector-strategy` | from survey | Ordered list of what this app can be located by, measured not assumed. See `04-selectors.md` |
 | `Tools-degraded` | optional | MCP tools found unavailable at preflight, comma-separated |
 | `Budget` | from Gate 1 | Tool-call ceiling the user approved, e.g. `190 tool calls` |
 | `Spent` | during P3 | Tool calls used so far. Exceeding `Budget` is W006 |
@@ -84,6 +85,7 @@ what lets the same validator gate every checkpoint.
 | `Class-ref` | when `Status: probed-by-class` | The `E-nn` that was probed in full and whose outcome this one inherits |
 | `Status` | survey | See `01-glossary.md`. Starts as `pending` |
 | `Probe` | probed | Action verb + what was done. `Observed` is illegal here |
+| `Value-source` | probed (`Typed` only) | Where the typed value came from: `page-data`, `constraint`, `label`, `synthetic`. See `05-probe-values.md` |
 | `Observed` | probed | What actually changed. Concrete and specific |
 | `Shots` | probed (`Tier: full`/`class` only) | `before.png, after.png` paths |
 | `Reset` | probed (`Tier: full`/`class` only) | How baseline state was restored |
@@ -325,6 +327,7 @@ Each rule applies from the phase listed and at every later phase.
 | V046 | survey | `Scope:` is `page`, an existing region, or an existing element |
 | V047 | survey | The scope chain reaches `page` without looping |
 | V048 | survey | A scope target is a `Kind: container` in the same region as the element it scopes |
+| V049 | probed | A `Probe:` beginning `Typed` records a legal `Value-source:` |
 | V042 | classified | `Locator-agree: no` is followed by ` — ` and a reason |
 | V043 | survey | `Resolves:` is a whole number — the count the live page returned |
 | V044 | survey | `Resolves: 0` — the selector matched nothing on the page it describes |
@@ -349,6 +352,8 @@ Each rule applies from the phase listed and at every later phase.
 | W006 | `Meta.Spent` exceeds the `Meta.Budget` approved at Gate 1 |
 | W007 | `Locator:` selects on a raw string that `Selector:` did not ground |
 | W008 | A region's `Box:` is more than twice the viewport height — the crop is unreadable and the region needs decomposing |
+| W009 | A control that matches against real data was probed with `Value-source: synthetic`, which cannot have matched |
+| W010 | `Selector:` rests on a framework- or build-generated value. Reload and compare (`04-selectors.md` S1) |
 
 ### Output
 

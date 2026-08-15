@@ -70,6 +70,10 @@ Foundations that apply everywhere, in `references/`:
 - `01-glossary.md` — element / component / page / flow, IDs, statuses, action verbs
 - `02-artifact-schema.md` — the artifact grammar and every validator rule
 - `03-toolbelt.md` — which Playwright MCP tool for which purpose
+- `04-selectors.md` — what makes a selector survive the next deploy. **Names no attribute as the
+  right one** — which one this app uses is measured, not assumed
+- `05-probe-values.md` — what to type into a field, and why a synthetic token is wrong for anything
+  that searches
 - `registry-format.md` — the `component-registry.md` entry format
 - `team-auth-mode.md` — opt-in portable/CI session, not the default
 

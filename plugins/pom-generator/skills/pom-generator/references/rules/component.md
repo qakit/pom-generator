@@ -29,7 +29,7 @@ This is a stronger signal than any markup detail. A thing with a name is a thing
 
 Any of these marks a component boundary:
 
-- a `data-testid` / `data-aid` on the container — the easiest case
+- a test attribute on the container, whichever this app uses (`04-selectors.md`) — the easiest case
 - a `role` such as `dialog`, `table`, `tablist`, `toolbar`, `navigation`
 - **a shared CSS-module class stem** — `div[class*='_filterPanel_']`, `div[class*='_checkboxes_']`.
   A generated, hashed class that still carries a readable stem across related elements is just as

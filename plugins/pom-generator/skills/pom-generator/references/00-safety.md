@@ -105,11 +105,23 @@ Clicking Save is a separate decision that needs its own permission.
 A wrong guess on a destructive action corrupts real data in a real application. There is no
 recovery step in this skill for that. Asking costs one message.
 
-## Rule 5 — Probe data must be obviously synthetic and must be cleaned up.
+## Rule 5 — Anything that could be persisted is obviously synthetic, and everything is cleaned up.
 
-When typing a probe value, use something unmistakably not-real (`zzprobe`, `test-probe-1`). Never
-type something that could be mistaken for genuine data if it were accidentally persisted. Clear
-it afterwards and confirm the field is empty before moving on.
+This rule is about **entry inputs** — a field on a form that would be saved if submitted. There,
+use something unmistakably not-real (`zzprobe`, `zzprobe@example.test`), so that nothing could be
+mistaken for genuine data if it were accidentally persisted.
+
+Synthetic does not mean malformed: honour the field's `type`, `pattern` and length limits, or the
+probe records a validation error that belongs to the value rather than to the field.
+
+**This rule does not govern query inputs** — search, filter, autocomplete. Nothing there is
+persisted; the value goes into a query and is discarded, so no safety question arises. A synthetic
+token in a search box simply searches for something that does not exist, and the probe then observes
+an empty state and learns nothing. Those take their value from data already on the page — see
+`05-probe-values.md`, which is where the whole derivation lives.
+
+Cleanup is unconditional either way. Clear the field afterwards and confirm it is empty before
+moving on.
 
 ---
 

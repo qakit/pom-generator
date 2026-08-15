@@ -43,6 +43,56 @@ gate and let the user decide, rather than fabricating a path.
 **Screenshots are read as images, not just saved.** A file written and never looked at contributes
 nothing. Every shot taken during survey and decomposition must actually be read.
 
+### The selector-strategy probe
+
+Run once, at the start of survey. It answers "what can this application be located by?" — which is
+a question about the app, not something to assume (`04-selectors.md`).
+
+```js
+// browser_evaluate
+(() => {
+  const nodes = [...document.querySelectorAll(
+    'a,button,input,select,textarea,[role],[tabindex],[onclick],[contenteditable]')];
+  const candidates = ['data-testid','data-test','data-qa','data-cy','data-aid','data-automation-id',
+                      'id','name','aria-label'];
+  const out = { interactive: nodes.length, attributes: {} };
+  for (const attr of candidates) {
+    const vals = nodes.map(n => n.getAttribute(attr)).filter(Boolean);
+    if (!vals.length) continue;
+    out.attributes[attr] = {
+      coverage: +(vals.length / nodes.length).toFixed(2),
+      unique: +(new Set(vals).size / vals.length).toFixed(2),
+      sample: vals.slice(0, 5),
+    };
+  }
+  // class stems: the authored part of a CSS-module name, hash removed
+  const stems = {};
+  for (const n of nodes) {
+    for (const c of (n.className || '').toString().split(/\s+/)) {
+      const m = c.match(/^(_[A-Za-z][A-Za-z0-9]*_)[A-Za-z0-9_-]{4,8}$/);
+      if (m) stems[m[1]] = (stems[m[1]] || 0) + 1;
+    }
+  }
+  out.classStems = Object.keys(stems).length;
+  return out;
+})()
+```
+
+**Then reload and run it again.** Any attribute whose sampled values changed between the two runs
+is framework-generated and unusable — this is the check that separates a real hook from an id that
+merely looks like one, and it is the only reliable one (`04-selectors.md` S1).
+
+Read the result together with `conventions.md`, decide the priority order, and write it into
+`Meta.Selector-strategy` as an ordered list with the evidence:
+
+```
+**Selector-strategy:** data-qa (0.88 coverage, unique, stable) > authored class stem (41 stems) > role+name
+```
+
+If nothing scores well, that is a finding: say so at Gate 1, and expect structure and XPath to do
+the work (`04-selectors.md` S4). It is a normal outcome for an application that was not built with
+a component framework, not a failure of the run.
+
 ### The grounding pass
 
 One call, every selector, and it is the cheapest accuracy in the whole pipeline. Run it at the end

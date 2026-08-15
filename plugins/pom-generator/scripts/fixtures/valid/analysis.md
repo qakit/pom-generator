@@ -16,6 +16,7 @@ validator at this directory directly, which would report V015 failures.
 **Viewport:** 1440x900
 **Baseline:** ./screens/baseline.png
 **Phase:** classified
+**Selector-strategy:** data-testid (91% of interactive nodes, unique, stable across reload) > authored class stem > role+name
 **Budget:** 60 tool calls
 **Spent:** 54
 
@@ -33,7 +34,7 @@ validator at this directory directly, which would report V015 failures.
 **Resolves:** 1
 **Box:** 0,72,1440,64
 **Shot:** ./screens/R-02.png
-**Contains:** E-02, E-03
+**Contains:** E-02, E-03, E-12
 
 ### R-03 — Employees table
 **Root:** `div[data-aid='employees-table']`
@@ -154,6 +155,7 @@ validator at this directory directly, which would report V015 failures.
 **Type:** inputs/text
 **Tier:** full
 **Probe:** Typed "zzprobe"
+**Value-source:** synthetic
 **Shots:** ./screens/E-05-before.png, ./screens/E-05-after.png
 **Observed:** value accepted; a clear X icon appeared inside the field; no network request fired
 **Reveals:** E-07
@@ -230,6 +232,30 @@ validator at this directory directly, which would report V015 failures.
 **Locator-pw:** `getByRole('option', { name: 'Suspended' })`
 **Locator-agree:** yes
 **Status:** probed-by-class
+
+### E-12 — Employee search
+**Region:** R-02
+**Scope:** R-02
+**Visual:** text box with a magnifier icon on the left, placeholder "Search employees"
+**Snapshot-ref:** e44
+**DOM:** `input[data-testid='employee-search']` type=search
+**Selector:** `[data-testid='employee-search']`
+**Resolves:** 1
+**Box:** 220,84,320,40
+**Kind:** actionable
+**Type:** inputs/search
+**Tier:** full
+**Probe:** Typed "Rivera"
+**Value-source:** page-data
+**Shots:** ./screens/E-12-before.png, ./screens/E-12-after.png
+**Observed:** took a surname visible in the table rather than a synthetic token; GET /api/employees?q=Rivera fired; table went 84 -> 3 rows and every remaining row contained the term. A synthetic value returned the empty state instead, which would have shown nothing about the populated list
+**Affects:** E-04
+**Reset:** cleared the field and confirmed 84 rows returned
+**Registry:** NEW
+**Locator:** `this.element.locator("[data-testid='employee-search']")`
+**Locator-pw:** `getByRole('searchbox', { name: 'Search employees' })`
+**Locator-agree:** yes
+**Status:** probed
 
 ### E-10 — Employee row
 **Region:** R-03

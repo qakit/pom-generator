@@ -102,7 +102,8 @@ root is written down. A selector is only meaningful together with the frame it r
 same cell selector matches once per row against the document and exactly once inside a row, and
 the second is the number the generated wrapper will actually see.
 
-1. The element carries a `data-testid`/`data-aid` → use it directly.
+1. The element itself carries whatever `Meta.Selector-strategy` ranked first for this app
+   (`04-selectors.md`) → use it directly.
 2. Its immediate parent carries one → locate the parent, then reach the child by role or position.
 3. Neither → go up one more level. **No further.**
 

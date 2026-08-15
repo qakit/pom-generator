@@ -48,20 +48,34 @@ answer comes from the picture.
 Typical count is 3–8. One region for the whole page means the partition has not happened; twenty
 means you are enumerating elements, not areas.
 
-### 3. Snapshot, and reconcile
+### 3. Work out what this app can be located by
+
+Run the selector-strategy probe from `03-toolbelt.md`, **twice, with a reload between**. Record the
+result in `Meta.Selector-strategy` as an ordered list.
+
+This decides every selector in the artifact, so it is worth the two calls it costs. Do not assume a
+convention: some apps carry `data-testid`, some `data-qa`, some a bespoke attribute, and plenty
+carry nothing useful at all. The reload is what separates a real hook from a framework-minted id
+that looks identical in a single snapshot — see `04-selectors.md`, which is the authority on what
+counts as stable and on when structure and XPath are the right answer.
+
+Cross-check against `conventions.md`. If the existing Page Objects use something other than the
+best-scoring option, **the existing code wins** (`04-selectors.md` S6) — report the mismatch at
+Gate 1 rather than acting on it.
+
+### 4. Snapshot, and reconcile
 
 ```
 browser_snapshot          (add boxes if supported — geometry is what maps image areas to nodes)
 ```
 
-For each visual region, find its container node and record a `Root:` selector. Prefer, in order: a
-`data-testid`/`data-aid`, a semantic `role`, a stable CSS-module class stem
-(`div[class*='_filterPanel_']` — see `rules/component.md` C3), a structural path.
+For each visual region, find its container node and record a `Root:` selector, following the
+strategy you just recorded rather than a fixed preference order.
 
 If a visual region has no single container node, say so in `Notes:` — that is a real finding, and
 it is what the decomposition phase needs to know.
 
-### 4. Ground the region roots
+### 5. Ground the region roots
 
 Before taking a single crop, run the grounding pass from `03-toolbelt.md` over every `Root:`.
 Write what comes back into `Resolves:` and `Box:`.
@@ -78,7 +92,7 @@ evidence.
   whole document, and cropping it yields a tall image that is mostly blank. Pick the inner
   container that actually bounds the visible area (W008).
 
-### 5. Region screenshots
+### 6. Region screenshots
 
 For each region: `browser_take_screenshot` with `target` set to the region root, saved as
 `screens/R-nn.png`. **Read each one.** This is where individual controls become legible — a
@@ -88,7 +102,7 @@ Record in `Shot:`. V070 checks the file exists; V072 checks its dimensions again
 just measured, so a crop that does not show what it is filed under fails the phase instead of
 quietly becoming the basis for a dozen element descriptions.
 
-### 6. Enumerate elements
+### 7. Enumerate elements
 
 For each region, list every element: every input, button, icon-button, dropdown, checkbox, tab,
 link, and every container that groups them. One `### E-nn` block per element, with `Region`,
@@ -105,7 +119,7 @@ Do not enumerate the cells of a repeating row as page elements. One row is a com
 cells are that component's accessors — see `rules/component.md` C7. Twenty rows × six cells is not
 an inventory of 120 elements.
 
-### 7. Give every element a scope
+### 8. Give every element a scope
 
 `Scope:` is what the element is located *from*: `page`, a region, or a container element
 (`02-artifact-schema.md`). Assign it before grounding, because it is the frame the grounding pass
@@ -123,7 +137,7 @@ Two things this immediately buys, both of which the phases downstream depend on:
 - an element inside an overlay has that overlay as its diff boundary during probing, which is what
   makes a conditionally revealed field visible.
 
-### 8. Ground the elements
+### 9. Ground the elements
 
 Run the grounding pass again, this time over every element's `Selector:`, resolved through its
 scope chain, and write back `Resolves:` and `Box:`.
@@ -137,7 +151,7 @@ means the selector came from somewhere other than this page — memory, the comp
 similar-looking control elsewhere in the app. That is precisely the error worth catching, and it
 costs one tool call to catch every instance of it at once.
 
-### 9. Assign a tier, and find the equivalence classes
+### 10. Assign a tier, and find the equivalence classes
 
 Every `Kind: actionable` element gets a `Tier:` now (`02-artifact-schema.md`), because the Gate 1
 estimate is computed from it. This is the step that decides whether P3 takes twenty minutes or two
@@ -161,7 +175,7 @@ and a shared handler, not a shared shape.
 Budget arithmetic: `full` ≈ 10 tool calls, a class ≈ 10 for its representative plus 1 each after,
 `evidence` ≈ 0.
 
-### 10. The second sweep — this is not optional
+### 11. The second sweep — this is not optional
 
 Everything above finds the obvious elements. This step finds the ones that get missed, and the
 list is drawn from what has actually been missed before:
@@ -190,14 +204,14 @@ browser_press_key  Tab          — walk focus through the page; every stop is a
 The Tab walk is the strongest completeness check available, because the browser's own focus order
 enumerates exactly the set of things that are interactive.
 
-### 11. Register the queue
+### 12. Register the queue
 
 If a todo tool is available, register **one task per element**. Not one task called "analyze
 elements" — one per element, marked complete only when a real observed outcome exists.
 
 The artifact is the durable queue; the todo list is the working view of it. Both, not either.
 
-### 12. Validate
+### 13. Validate
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" --phase=survey .pom-generator/analysis/<slug>

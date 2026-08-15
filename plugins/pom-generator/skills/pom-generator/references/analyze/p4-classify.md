@@ -42,9 +42,14 @@ wrapper. Check each one; it is usually right.
 
 Per `rules/element.md` E7, shortest path from the component's own root:
 
-1. `data-testid`/`data-aid` on the element → use it
-2. on its immediate parent → locate the parent, then reach the child by role or position
+1. the element itself carries whatever `Meta.Selector-strategy` ranked first → use it
+2. its immediate parent carries one → locate the parent, then reach the child by role or position
 3. neither → one more level up, no further
+
+Which hook that is comes from `Meta.Selector-strategy`, measured at survey, and from
+`04-selectors.md` for what counts as stable — never from a fixed preference written into this
+document. An app with no test attributes is a normal case, and structure or XPath is the correct
+answer there rather than a compromise.
 
 Inside a component, everything is relative to `this.element`. Page-level elements use `this.page`.
 A `page.`-rooted locator inside a component fails validation (V040, V041) because it breaks reuse

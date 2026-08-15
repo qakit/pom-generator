@@ -94,6 +94,24 @@ Exactly the action the catalog entry specifies. A lighter one does not substitut
 (`rules/element.md` E2): typing for inputs, selecting for dropdowns, toggling for checkboxes,
 two clicks for a sortable header, both ends of a date range.
 
+**If the action is typing, derive the value — do not invent one** (`05-probe-values.md`). The short
+version:
+
+- A **query** input — search, filter, autocomplete — takes its value from **data already visible on
+  the page**. A synthetic token searches for something that by construction does not exist, so the
+  probe sees the empty state and learns nothing about the populated one, which is the state the
+  wrapper actually has to support.
+- An **entry** input — a field that would be saved — stays synthetic per `00-safety.md` Rule 5, but
+  **well-formed**: honour `type`, `pattern` and length, or you record a validation error caused by
+  your own value.
+- Match the **script of the field's own label**. Apps validate names by character class and sort by
+  locale, so Latin text in a field labelled in another script can trip a validator you then
+  misattribute to the field.
+
+Record which of these applied in `Value-source:` (V049). If a matching control comes back empty,
+the probe is not finished — retry with a page-derived value, and if it is still empty say so
+concretely, because that is a real finding about their app.
+
 ### 6. Observe
 
 `browser_take_screenshot` → `screens/E-nn-after.png`, and **read it**. Then `browser_snapshot` and
@@ -105,7 +123,8 @@ compare. Then `browser_network_requests`.
 ```js
 // browser_evaluate, once before the action and once after
 [...document.querySelector(SCOPE_SELECTOR)
-  .querySelectorAll('input,select,textarea,button,a,[role],[data-testid],[data-qa],[contenteditable]')]
+  // add whatever attribute Meta.Selector-strategy ranked first for this app
+  .querySelectorAll('input,select,textarea,button,a,[role],[tabindex],[contenteditable]')]
   .map(n => `${n.tagName}|${n.getAttribute('role')||''}|${n.id||''}|${(n.className||'').toString().slice(0,40)}`)
 ```
 
