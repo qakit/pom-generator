@@ -32,16 +32,22 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" --phase=<phase> .pom-
 
 Both exist because these are the errors that are expensive to undo.
 
-**Gate 1, after survey.** Present the region map and the element inventory as a table. The user is
-checking for something *missing* — a toolbar you did not see, a control in a side panel. Catching
-it here costs one edit; catching it later costs the whole probe run.
+**Gate 1, after survey.** Present the region map, the element inventory as a table, and **the
+budget**. The user is checking two things: something *missing* — a toolbar you did not see, a
+control in a side panel — and whether P3 is about to spend its time on the right controls. Catching
+either here costs one edit; catching it later costs the whole probe run.
+
+The budget is a real number of tool calls, derived from the `Tier:` assigned to each element, and
+it goes into `Meta.Budget` once approved. P3 is unattended, so this is the last point at which its
+cost is negotiable.
 
 **Gate 2, after decomposition.** Present the component tree. The user is checking *boundaries* — is
 that really one filter panel, should the table and its toolbar be separate. A wrong boundary
 propagates into every generated file, and unlike a wrong selector nothing downstream catches it.
 
 Probing (P3) runs unattended. It is long, mechanical, and self-checking; the artifact is the review
-surface when it finishes.
+surface when it finishes — and it stops at 1.5× the approved budget rather than running until
+somebody gives up.
 
 Stop means stop: present, and wait for the user's reply. Do not run the next phase in the same
 turn.
@@ -101,6 +107,7 @@ Then stop. Suggest `/pom-generate <slug>` as the next step; do not run it.
 | An element cannot be reached at all | `Status: blocked-unreachable` with a note. Continue |
 | The page errors or a probe breaks it | Reload, re-verify baseline, and note it. If the page is genuinely broken, stop and tell the user — that is a bug in their app and a finding worth having |
 | A required MCP tool is missing | Record in `Meta.Tools-degraded`, follow the fallback in `03-toolbelt.md`. If a validator rule becomes unsatisfiable, say so at the gate rather than fabricating a value |
+| `Meta.Spent` reaches 1.5× `Meta.Budget` | Stop. Write the artifact, report what is probed and what is still `pending`, and let the user choose. A partial artifact with honest statuses is a usable result; an unbounded run that never reaches `/pom-generate` is not |
 
 Nothing in this table is a reason to skip an element silently. Every one of them ends with a
 recorded state.

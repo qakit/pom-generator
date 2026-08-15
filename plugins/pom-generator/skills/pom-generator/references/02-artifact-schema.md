@@ -41,6 +41,8 @@ One file per page. Flows link several of these together; they do not merge them.
 | `Phase` | always | `survey` \| `decomposed` \| `probed` \| `classified` \| `generated` |
 | `Conventions` | optional | Marker for which `conventions.md` version this was analyzed against |
 | `Tools-degraded` | optional | MCP tools found unavailable at preflight, comma-separated |
+| `Budget` | from Gate 1 | Tool-call ceiling the user approved, e.g. `190 tool calls` |
+| `Spent` | during P3 | Tool calls used so far. Exceeding `Budget` is W006 |
 | `Notes` | optional | Free text |
 
 `Phase` advances only when that phase's validator run passes. It is the resume point: a run that
@@ -71,11 +73,14 @@ what lets the same validator gate every checkpoint.
 | `DOM` | survey | Backticked tag/selector plus role and relevant aria/data attributes |
 | `Kind` | survey | `actionable` \| `static` \| `container` |
 | `Type` | survey | A type id from `catalog/index.md` |
+| `Tier` | survey (actionable only) | `full` \| `class` \| `evidence` — how much evidence this element's conclusion may rest on. See below |
+| `Class` | when `Tier: class` | A short id naming the equivalence class, e.g. `status-option` |
+| `Class-ref` | when `Status: probed-by-class` | The `E-nn` that was probed in full and whose outcome this one inherits |
 | `Status` | survey | See `01-glossary.md`. Starts as `pending` |
 | `Probe` | probed | Action verb + what was done. `Observed` is illegal here |
 | `Observed` | probed | What actually changed. Concrete and specific |
-| `Shots` | probed (actionable only) | `before.png, after.png` paths |
-| `Reset` | probed (actionable only) | How baseline state was restored |
+| `Shots` | probed (`Tier: full`/`class` only) | `before.png, after.png` paths |
+| `Reset` | probed (`Tier: full`/`class` only) | How baseline state was restored |
 | `Reveals` | when applicable | `C-nn` / `E-nn` IDs this interaction brought into existence |
 | `Affects` | when applicable | IDs of other elements this one changes |
 | `Registry` | classified | `NEW` or the name of the existing wrapper class that matches |
@@ -83,6 +88,33 @@ what lets the same validator gate every checkpoint.
 | `Locator-pw` | classified | What `browser_generate_locator` returned |
 | `Locator-agree` | classified | `yes`, or `no — <reason>` |
 | `Notes` | optional | Free text |
+
+### Tiers
+
+`Tier` is assigned during survey, before anything is probed, because it is what the Gate 1 cost
+estimate is built from. Deciding it later means deciding it after the cost has been paid.
+
+| Tier | What it buys | What it costs | Legal for |
+|---|---|---|---|
+| `full` | the whole P3 procedure — before shot, action, after shot, network and console diff, reset | ~10 tool calls | anything |
+| `class` | one member probed `full`; siblings inherit its outcome and name it | ~10 calls for the class, ~1 each after | members of a genuine equivalence class |
+| `evidence` | no interaction; the conclusion is read off attributes the DOM already carries | ~0 extra calls | see the restriction below |
+
+**`Tier: evidence` is deliberately hard to reach** (V019). It is illegal for `inputs/*`,
+`selection/*`, `temporal/*` and `collections/*`, and illegal for anything with a `Reveals:`.
+What a select does depends on what happens when you select; a field that only appears on the third
+option is invisible to any amount of DOM reading. The tier exists for the case where the markup
+genuinely states the answer — an `<a href>` that navigates, a `disabled` attribute — and its probe
+verb is `Read`, which is legal at no other tier.
+
+**A class is a claim about sameness and V017 makes you back it.** At least one member must reach
+`Status: probed`; a class where everybody inherited is a class where nothing was observed. The
+inheriting members carry `Status: probed-by-class` and a `Class-ref:` pointing at the member that
+did the work, so the extrapolation is declared rather than silent (`rules/element.md` E3).
+
+Two elements are in the same class only if they share a type, a container, a class stem or
+`data-*` prefix, and a handler. Sharing a *shape* is not sharing a class — two identical-looking
+icon buttons in the same toolbar routinely do unrelated things.
 
 ### A worked block
 
@@ -94,6 +126,7 @@ what lets the same validator gate every checkpoint.
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
 **Kind:** actionable
 **Type:** selection/single-select
+**Tier:** full
 **Probe:** Selected "Active"
 **Shots:** ./screens/E-04-before.png, ./screens/E-04-after.png
 **Observed:** listbox opened with 4 options (All, Active, Suspended, Archived); on select, GET /api/employees?status=active fired; table went 84 -> 31 rows; E-11 row count label updated
@@ -187,6 +220,9 @@ Each rule applies from the phase listed and at every later phase.
 | V014 | survey | `Kind: static` requires `Status: static-confirmed`; `Kind: actionable` forbids it |
 | V015 | probed | Every `Kind: actionable` element has two `Shots:` paths, and both files exist on disk |
 | V016 | probed | Every `Kind: actionable` element has a non-empty `Reset:` |
+| V017 | probed | Every `Class:` has at least one member with `Status: probed` |
+| V018 | probed | `Status: probed-by-class` requires `Class-ref:` resolving to a probed member of the same class |
+| V019 | survey | `Tier:` is legal for the element: `evidence` is refused for `inputs/*`, `selection/*`, `temporal/*`, `collections/*` and for anything with `Reveals:` |
 | V020 | survey | Every element's `Region:` resolves to a region block |
 | V021 | survey | Every ID in a region's `Contains:` resolves to an element block |
 | V022 | decomposed | Every ID in `Reveals:` resolves to an element block or a `C-nn` region |
@@ -212,6 +248,7 @@ Each rule applies from the phase listed and at every later phase.
 | W003 | `Type:` is an `other/*` fallback — a candidate for a new catalog entry |
 | W004 | A region contains more than 15 elements — it probably needs decomposing further |
 | W005 | An element has `Registry: NEW` but its `DOM:` closely matches an existing registry entry |
+| W006 | `Meta.Spent` exceeds the `Meta.Budget` approved at Gate 1 |
 
 ### Output
 

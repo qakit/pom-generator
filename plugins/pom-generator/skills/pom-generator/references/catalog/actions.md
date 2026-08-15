@@ -52,7 +52,7 @@ the snapshot skips them. The P1 second sweep exists specifically to catch them.
 **Aliases:** anchor, nav link
 **Identify:** `a` with a real `href` that changes the URL
 **Not:** `actions/icon-button` (an `<a href="#">` that does not navigate)
-**Required probe:** click it and confirm the URL actually changed. If it opens a new tab, that is the observation — handle the tab per `03-toolbelt.md` and analyze the destination as its own page
+**Required probe:** `Tier: evidence` is the default here and usually sufficient — read `href`, `target`, and whether a click handler is bound (`browser_evaluate`), and record that. A plain anchor with a real `href` and no interception does not need a page load to prove that links navigate, and a nav bar of them does not need seven. Click it only when the evidence is ambiguous: no `href`, `href="#"`, a bound handler, `target=_blank`, or a label suggesting it does something other than navigate — then it is `Tier: full`, confirm the URL actually changed, and handle a new tab per `03-toolbelt.md`
 **Observe:** target URL, same tab or new tab, whether it is a full navigation or a client-side route change
 **Reset:** `browser_navigate_back`, or navigate to the page URL
 **Reveals:** the destination page — a separate analysis with its own slug, not part of this artifact

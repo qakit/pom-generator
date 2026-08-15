@@ -90,6 +90,7 @@ finished. Only these values are legal:
 |---|---|---|
 | `pending` | In the inventory, not yet probed | **No** — blocks generation |
 | `probed` | Actually interacted with; `Probe:` and `Observed:` are filled in | Yes |
+| `probed-by-class` | Inherits the outcome of a member of the same `Class:` that was probed in full. Requires `Tier: class` and `Class-ref:` (V017, V018) | Yes |
 | `static-confirmed` | Confirmed non-interactive (a label, a static badge, an icon with no handler). Requires `Kind: static` | Yes |
 | `blocked-<reason>` | Could not be probed. Reason is required, e.g. `blocked-safety`, `blocked-unreachable`, `blocked-flaky` | Yes, but reported |
 | `removed` | Delta mode only: existed in a previous analysis, gone now | Yes |

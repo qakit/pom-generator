@@ -16,12 +16,14 @@ validator at this directory directly, which would report V015 failures.
 **Viewport:** 1440x900
 **Baseline:** ./screens/baseline.png
 **Phase:** classified
+**Budget:** 60 tool calls
+**Spent:** 54
 
 ## Regions
 ### R-01 — Page header
 **Root:** `header[class*='_pageHeader_']`
 **Shot:** ./screens/R-01.png
-**Contains:** E-01
+**Contains:** E-01, E-09
 **Notes:** page-level, no component extracted
 
 ### R-02 — Filter panel
@@ -43,7 +45,7 @@ validator at this directory directly, which would report V015 failures.
 ### R-05 — Status option list
 **Root:** `ul[role='listbox']`
 **Shot:** ./screens/R-05.png
-**Contains:** E-06
+**Contains:** E-06, E-08
 **Component:** C-02
 
 ## Elements
@@ -67,6 +69,7 @@ validator at this directory directly, which would report V015 failures.
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
 **Kind:** actionable
 **Type:** selection/single-select
+**Tier:** full
 **Probe:** Selected "Active"
 **Shots:** ./screens/E-02-before.png, ./screens/E-02-after.png
 **Observed:** listbox opened with 4 options; GET /api/employees?status=active fired; table went 84 -> 31 rows
@@ -86,6 +89,7 @@ validator at this directory directly, which would report V015 failures.
 **DOM:** `button[data-aid='create']` role=button
 **Kind:** actionable
 **Type:** actions/button
+**Tier:** full
 **Probe:** Clicked
 **Shots:** ./screens/E-03-before.png, ./screens/E-03-after.png
 **Observed:** a modal opened titled "Create employee" containing 3 fields and Save/Cancel controls
@@ -118,6 +122,7 @@ validator at this directory directly, which would report V015 failures.
 **DOM:** `input[data-aid='full-name']` type=text
 **Kind:** actionable
 **Type:** inputs/text
+**Tier:** full
 **Probe:** Typed "zzprobe"
 **Shots:** ./screens/E-05-before.png, ./screens/E-05-after.png
 **Observed:** value accepted; a clear X icon appeared inside the field; no network request fired
@@ -136,6 +141,8 @@ validator at this directory directly, which would report V015 failures.
 **DOM:** `li[role='option']` aria-selected=false
 **Kind:** actionable
 **Type:** selection/option
+**Tier:** class
+**Class:** status-option
 **Probe:** Clicked
 **Shots:** ./screens/E-06-before.png, ./screens/E-06-after.png
 **Observed:** row highlighted, overlay closed, filter chip now reads "Active", 31 rows remained
@@ -154,6 +161,7 @@ validator at this directory directly, which would report V015 failures.
 **DOM:** `button[class*='_clear_']` role=button aria-label="Clear"
 **Kind:** actionable
 **Type:** actions/icon-button
+**Tier:** full
 **Probe:** Clicked
 **Shots:** ./screens/E-07-before.png, ./screens/E-07-after.png
 **Observed:** field cleared to empty, the X icon disappeared, focus stayed in the name field
@@ -161,6 +169,39 @@ validator at this directory directly, which would report V015 failures.
 **Registry:** NEW
 **Locator:** `this.element.getByRole("button", { name: "Clear" })`
 **Locator-pw:** `getByRole('button', { name: 'Clear' })`
+**Locator-agree:** yes
+**Status:** probed
+
+### E-08 — Suspended option
+**Region:** R-05
+**Visual:** third row of the same option list, identical shape and padding to the Active row
+**Snapshot-ref:** e50
+**DOM:** `li[role='option']` aria-selected=false
+**Kind:** actionable
+**Type:** selection/option
+**Tier:** class
+**Class:** status-option
+**Class-ref:** E-06
+**Notes:** same `li[role='option']` under the same listbox, same handler; E-06 was probed in full
+**Registry:** NEW
+**Locator:** `this.element.getByRole("option")`
+**Locator-pw:** `getByRole('option', { name: 'Suspended' })`
+**Locator-agree:** yes
+**Status:** probed-by-class
+
+### E-09 — Back to dashboard
+**Region:** R-01
+**Visual:** small text link with a left chevron, above the page title
+**Snapshot-ref:** e09
+**DOM:** `a[href='/dashboard']` role=link
+**Kind:** actionable
+**Type:** actions/link
+**Tier:** evidence
+**Probe:** Read href="/dashboard", target absent, no click handler bound
+**Observed:** plain in-app anchor to /dashboard in the same tab; no interception, so following it is a full route change to a page with its own analysis slug
+**Registry:** NEW
+**Locator:** `this.page.locator("a[href='/dashboard']")`
+**Locator-pw:** `getByRole('link', { name: 'Back to dashboard' })`
 **Locator-agree:** yes
 **Status:** probed
 

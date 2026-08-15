@@ -87,6 +87,16 @@ The collection is one class; the item is another; everything else is `getItem(n)
 this project's indexing methods return a wrapper instance or a raw `Locator` — that decision is
 already made and must be followed.
 
+**The item's own parts belong to the item, not to the page inventory.** A row showing an avatar, a
+name, a date range, a status and a type is *one* `E-nn` for the row plus accessors on the row
+component — not five page-level elements, and certainly not five per row. Inventorying cells
+individually inflates the survey, inflates the Gate 1 budget, and produces position-indexed
+locators like `row cell >> nth=3` that break the first time a column moves.
+
+The controls *inside* a row that do something — an action button, a link, a checkbox — are real
+elements and belong to the row component. They are also a textbook equivalence class: probe one
+row's button in full, give the rest the same `Class:` (`02-artifact-schema.md`).
+
 ## C8. Every revealed container becomes a file
 
 A dialog, drawer, menu panel, popover or autocomplete list that a probe brings into existence gets:

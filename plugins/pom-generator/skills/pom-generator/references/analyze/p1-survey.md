@@ -81,6 +81,34 @@ Then pick a `Type:` from `catalog/index.md` as a *hypothesis*; P3 will confirm o
 
 Update each region's `Contains:` as you go — membership is checked both ways (V025).
 
+Do not enumerate the cells of a repeating row as page elements. One row is a component and its
+cells are that component's accessors — see `rules/component.md` C7. Twenty rows × six cells is not
+an inventory of 120 elements.
+
+### 5a. Assign a tier, and find the equivalence classes
+
+Every `Kind: actionable` element gets a `Tier:` now (`02-artifact-schema.md`), because the Gate 1
+estimate is computed from it. This is the step that decides whether P3 takes twenty minutes or two
+hours, and it is the only point at which that is still cheap to change.
+
+- **`evidence`** — the markup already answers the question. A link with a real `href` needs its
+  href read, not seven page loads to re-establish that links navigate. V019 keeps this narrow: it
+  is refused outright for inputs, selections, temporal and collection types, and for anything that
+  reveals something.
+- **`class`** — the element is one of several that share a type, a container, a class stem or
+  `data-*` prefix, and a handler. Give them all the same `Class:` id. One will be probed in full
+  and the rest will inherit from it.
+- **`full`** — everything else. In particular: anything that opens a dialog, drawer or menu;
+  anything whose value changes what else is on screen; anything the page exists to do. **When
+  unsure, `full`.** The tier system is for spending the budget where it matters, not for spending
+  less of it.
+
+Two identical-looking buttons in the same toolbar are not a class. Sameness means shared markup
+and a shared handler, not a shared shape.
+
+Budget arithmetic: `full` ≈ 10 tool calls, a class ≈ 10 for its representative plus 1 each after,
+`evidence` ≈ 0.
+
 ### 6. The second sweep — this is not optional
 
 Everything above finds the obvious elements. This step finds the ones that get missed, and the
@@ -132,12 +160,35 @@ Fix anything it reports. Then set `Meta.Phase: survey`.
 Present:
 
 1. the region map — each region, its name, its element count
-2. the full element inventory as a table: ID, name, region, hypothesised type
+2. the full element inventory as a table: ID, name, region, hypothesised type, **tier**
 3. the counts, and anything you were unsure about
 4. on a re-analysis, the `## Delta` instead of the full list
+5. **the budget** (below)
 
-Then say plainly what you want from them: **is anything missing?** That is the question this gate
-exists to answer, and it is much easier for someone who knows the app than for anyone reading a
-snapshot.
+Then ask for two things, plainly:
+
+- **Is anything missing?** Much easier for someone who knows the app than for anyone reading a
+  snapshot, and a miss here is the one error nothing downstream recovers from.
+- **Is this the right thing to spend the time on?** They know which controls matter.
+
+### The budget
+
+P3 is long, mechanical and unattended, which is exactly why its cost has to be agreed before it
+starts rather than discovered part-way through. Present it as a table — elements by tier, the call
+estimate, and a wall-clock estimate — followed by what you propose **not** to do:
+
+```
+  12 full      ~120 calls    dialogs, the type select, the row action, the date range
+   9 class     ~30 calls     4 classes: status checkboxes, filter chips, row arrows, option rows
+   8 evidence  ~8 calls      nav links and anchors — href read, not clicked
+  16 static    ~0 calls      labels, headings, status text
+
+  ~158 tool calls, roughly 25-35 minutes
+
+  Proposed to skip: E-31..E-34 (footer links, low value for this page's tests)
+```
+
+Write the approved number into `Meta.Budget`. It is not advisory: P3 tracks `Meta.Spent` against
+it and stops at 1.5×.
 
 **Stop and wait.** Do not begin P2 in the same turn.

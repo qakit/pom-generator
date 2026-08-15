@@ -31,13 +31,14 @@ const phaseAtLeast = (current, required) =>
 const SECTIONS = ['Meta', 'Regions', 'Elements', 'Component tree', 'Output manifest'];
 
 const META_FIELDS = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase',
-  'Conventions', 'Tools-degraded', 'Notes'];
+  'Conventions', 'Tools-degraded', 'Budget', 'Spent', 'Notes'];
 const META_REQUIRED = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase'];
 
 const REGION_FIELDS = ['Root', 'Shot', 'Contains', 'Component', 'Notes'];
 const REGION_REQUIRED = ['Root', 'Shot', 'Contains'];
 
-const ELEMENT_FIELDS = ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Kind', 'Type', 'Status',
+const ELEMENT_FIELDS = ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Kind', 'Type', 'Tier',
+  'Class', 'Class-ref', 'Status',
   'Probe', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
   'Registry', 'Locator', 'Locator-pw', 'Locator-agree', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
@@ -50,10 +51,30 @@ const DELTA_FIELDS = ['Against', 'Added', 'Removed', 'Changed', 'Unchanged'];
 
 const ACTION_VERBS = ['Typed', 'Clicked', 'Double-clicked', 'Selected', 'Toggled', 'Checked',
   'Unchecked', 'Hovered', 'Pressed', 'Uploaded', 'Dragged', 'Scrolled',
-  'Expanded', 'Collapsed'];
+  'Expanded', 'Collapsed', 'Read'];
 
 const KINDS = ['actionable', 'static', 'container'];
-const SIMPLE_STATUSES = ['pending', 'probed', 'static-confirmed', 'removed'];
+const SIMPLE_STATUSES = ['pending', 'probed', 'probed-by-class', 'static-confirmed', 'removed'];
+
+/**
+ * How much evidence an element's conclusion is allowed to rest on. Assigned at survey so the
+ * cost of P3 is known — and approvable — before P3 starts, not discovered two hours in.
+ *
+ *   full      the whole probe procedure: before/after screenshots, action, reset
+ *   class     one member of an equivalence class is probed `full`; the rest inherit its
+ *             outcome and say so, which is declared extrapolation rather than silent
+ *   evidence  no interaction — the conclusion comes from attributes the DOM already states
+ *             (an `href`, `disabled`, `type`). Cheap, and strictly limited by V019
+ */
+const TIERS = ['full', 'class', 'evidence'];
+
+/**
+ * Families whose behaviour is never readable from attributes: what a select does depends on
+ * what happens when you select, and a conditional field that appears on the third option is
+ * invisible to any amount of DOM reading. `Tier: evidence` on these is the shortcut that
+ * produces a confident, wrong artifact.
+ */
+const MUST_INTERACT = ['inputs', 'selection', 'temporal', 'collections'];
 
 const DIALOGISH = /\b(dialog|modal|drawer|popup|popover|sheet|lightbox)\b/i;
 const LISTISH = /\b(dropdown|listbox|menu|autocomplete|suggestion|typeahead|combobox list)\b/i;
@@ -70,6 +91,9 @@ const RULE_DESC = {
   V014: 'Kind and Status must agree',
   V015: 'actionable element needs before/after screenshots that exist',
   V016: 'actionable element must record how state was reset',
+  V017: 'every equivalence class needs one fully probed member',
+  V018: 'an inherited outcome must name the member it came from',
+  V019: 'Tier must be legal for the element type',
   V020: 'element Region must resolve',
   V021: 'region Contains must resolve',
   V022: 'Reveals must resolve',
@@ -90,6 +114,7 @@ const RULE_DESC = {
   W003: 'unmatched widget type, candidate for a new catalog entry',
   W004: 'region is large enough that it probably needs decomposing',
   W005: 'marked NEW although the same type is wrapped elsewhere',
+  W006: 'the run spent more than the budget approved at Gate 1',
 };
 
 // ---------------------------------------------------------------- parsing
@@ -317,13 +342,21 @@ export function validateContent(content, opts = {}) {
     if (at('classified')) required.push(...ELEMENT_REQUIRED_AT.classified);
     const kind = fv(e, 'Kind');
     const status = fv(e, 'Status');
+    const tier = fv(e, 'Tier');
     const isActionable = kind === 'actionable';
     const isTerminal = status && status !== 'pending';
+    const inherited = status === 'probed-by-class';
+
+    // An actionable element carries a tier from survey onward: it is what the Gate 1 budget
+    // is computed from, so it cannot be decided later when the cost is already sunk.
+    if (isActionable && status !== 'removed') required.push('Tier');
 
     for (const name of required) {
-      // probe-stage fields are only meaningful for elements that reached a terminal state
+      // probe-stage fields are only meaningful for elements that reached a terminal state,
+      // and an inherited outcome records its source instead of an action it did not perform
       if (ELEMENT_REQUIRED_AT.probed.includes(name)) {
-        if (!isActionable || status === 'removed' || (status || '').startsWith('blocked-')) continue;
+        if (!isActionable || inherited || status === 'removed'
+            || (status || '').startsWith('blocked-')) continue;
       }
       if (!e.fields.has(name)) err('V003', e.line, e.id, `missing required field "${name}"`);
     }
@@ -352,6 +385,55 @@ export function validateContent(content, opts = {}) {
       }
     }
 
+    // ---- V019
+    if (tier !== undefined) {
+      if (!TIERS.includes(tier)) {
+        err('V019', fl(e, 'Tier'), e.id, `Tier must be one of ${TIERS.join(', ')}`);
+      } else if (tier === 'evidence') {
+        const family = (type || '').split('/')[0];
+        if (MUST_INTERACT.includes(family)) {
+          err('V019', fl(e, 'Tier'), e.id,
+            `Tier: evidence is not available for ${family}/* — its behaviour is only observable by interacting`);
+        }
+        if (list(fv(e, 'Reveals')).length) {
+          err('V019', fl(e, 'Tier'), e.id,
+            'Tier: evidence cannot reveal anything — something that opens a dialog or list must be probed');
+        }
+      }
+      if (tier === 'class' && !fv(e, 'Class')) {
+        err('V019', fl(e, 'Tier'), e.id, 'Tier: class requires a Class');
+      }
+    }
+    if (inherited && tier !== 'class') {
+      err('V018', fl(e, 'Status'), e.id, 'Status: probed-by-class is only legal at Tier: class');
+    }
+
+    // ---- V018
+    if (inherited) {
+      const ref = fv(e, 'Class-ref');
+      const cls = fv(e, 'Class');
+      if (!ref) {
+        err('V018', fl(e, 'Status'), e.id,
+          'inherited outcome must name the element it was inherited from in Class-ref');
+      } else {
+        const src = elementById.get(ref);
+        if (!src) {
+          err('V018', fl(e, 'Class-ref'), e.id, `Class-ref "${ref}" does not resolve`);
+        } else if (src.id === e.id) {
+          err('V018', fl(e, 'Class-ref'), e.id, 'Class-ref cannot point at itself');
+        } else if (fv(src, 'Class') !== cls) {
+          err('V018', fl(e, 'Class-ref'), e.id,
+            `Class-ref "${ref}" is in class "${fv(src, 'Class') || '(none)'}", not "${cls}"`);
+        } else if (fv(src, 'Status') !== 'probed') {
+          err('V018', fl(e, 'Class-ref'), e.id,
+            `Class-ref "${ref}" was not itself probed (Status: ${fv(src, 'Status')})`);
+        }
+      }
+    } else if (fv(e, 'Class-ref')) {
+      err('V018', fl(e, 'Class-ref'), e.id,
+        'Class-ref is only for an element whose Status is probed-by-class');
+    }
+
     // ---- V014
     if (kind === 'static' && status && status !== 'static-confirmed' && status !== 'removed') {
       err('V014', fl(e, 'Status'), e.id, 'Kind: static requires Status: static-confirmed');
@@ -368,7 +450,7 @@ export function validateContent(content, opts = {}) {
       warn('W001', fl(e, 'Status'), e.id, `not probed: ${status}`);
     }
 
-    const probeReady = at('probed') && isActionable && isTerminal
+    const probeReady = at('probed') && isActionable && isTerminal && !inherited
       && status !== 'removed' && !(status || '').startsWith('blocked-');
 
     // ---- V011 / V012 / V015 / V016
@@ -379,22 +461,31 @@ export function validateContent(content, opts = {}) {
         err('V011', fl(e, 'Probe'), e.id,
           probe.trim() ? `"${probe.slice(0, 40)}" does not start with an action verb` : 'empty Probe');
       }
+      // `Read` is the evidence-tier verb: it states that a conclusion came from an attribute
+      // the DOM already carries. It is honest there and a dodge anywhere else.
+      if (verb === 'Read' && tier !== 'evidence') {
+        err('V011', fl(e, 'Probe'), e.id, '"Read" is only a probe at Tier: evidence');
+      }
       const observed = fv(e, 'Observed') || '';
       if (observed.length < 20) {
         err('V012', fl(e, 'Observed'), e.id,
           `observation too thin to be a real result (${observed.length} chars)`);
       }
-      const shots = list(fv(e, 'Shots'));
-      if (shots.length < 2) {
-        err('V015', fl(e, 'Shots'), e.id, 'needs a before and an after screenshot');
-      } else {
-        for (const s of shots) {
-          const p = isAbsolute(s) ? s : join(dir, s);
-          if (!existsSync(p)) err('V015', fl(e, 'Shots'), e.id, `screenshot not found: ${s}`);
+      // An evidence-tier element performed no action, so there is no before/after pair to
+      // take and no state to put back. Everything else owes both.
+      if (tier !== 'evidence') {
+        const shots = list(fv(e, 'Shots'));
+        if (shots.length < 2) {
+          err('V015', fl(e, 'Shots'), e.id, 'needs a before and an after screenshot');
+        } else {
+          for (const s of shots) {
+            const p = isAbsolute(s) ? s : join(dir, s);
+            if (!existsSync(p)) err('V015', fl(e, 'Shots'), e.id, `screenshot not found: ${s}`);
+          }
         }
-      }
-      if (!(fv(e, 'Reset') || '').trim()) {
-        err('V016', fl(e, 'Reset'), e.id, 'must record how baseline state was restored');
+        if (!(fv(e, 'Reset') || '').trim()) {
+          err('V016', fl(e, 'Reset'), e.id, 'must record how baseline state was restored');
+        }
       }
 
       // ---- V030 / V031
@@ -455,6 +546,34 @@ export function validateContent(content, opts = {}) {
         warn('W002', fl(e, 'Locator-agree'), e.id, agree.slice(0, 60));
       }
     }
+  }
+
+  // ---- V017
+  // Declared extrapolation is only worth anything if somebody actually did the work once.
+  // A class where every member inherited is a class where nothing was ever observed.
+  if (at('probed')) {
+    const classes = new Map();
+    for (const e of doc.elements) {
+      const cls = fv(e, 'Class');
+      if (!cls) continue;
+      if (!classes.has(cls)) classes.set(cls, []);
+      classes.get(cls).push(e);
+    }
+    for (const [cls, members] of classes) {
+      const probed = members.filter((m) => fv(m, 'Status') === 'probed');
+      if (probed.length === 0) {
+        err('V017', fl(members[0], 'Class'), members[0].id,
+          `class "${cls}" has ${members.length} members and none of them was probed`);
+      }
+    }
+  }
+
+  // ---- W006
+  const budget = Number.parseInt((fv(doc.meta, 'Budget') || '').replace(/[^0-9]/g, ''), 10);
+  const spent = Number.parseInt((fv(doc.meta, 'Spent') || '').replace(/[^0-9]/g, ''), 10);
+  if (Number.isFinite(budget) && Number.isFinite(spent) && spent > budget) {
+    warn('W006', fl(doc.meta, 'Spent'), 'Meta',
+      `spent ${spent} against a budget of ${budget} approved at Gate 1`);
   }
 
   // ---- W005
@@ -566,6 +685,11 @@ const MUTATIONS = [
   ['V014', '**Status:** static-confirmed', '**Status:** probed'],
   ['V015', './screens/E-02-after.png', './screens/nope.png'],
   ['V016', '**Reset:** re-selected "All statuses", confirmed 84 rows', '**Reset:** '],
+  // the class representative stops being probed, so nothing in the class was ever observed
+  ['V017', '**Locator-pw:** `getByRole(\'option\', { name: \'Active\' })`\n**Locator-agree:** yes\n**Status:** probed',
+    '**Locator-pw:** `getByRole(\'option\', { name: \'Active\' })`\n**Locator-agree:** yes\n**Status:** blocked-flaky'],
+  ['V018', '**Class-ref:** E-06', '**Class-ref:** E-77'],
+  ['V019', '**Type:** actions/link\n**Tier:** evidence', '**Type:** selection/single-select\n**Tier:** evidence'],
   ['V020', '**Region:** R-02\n**Visual:** pill-shaped', '**Region:** R-99\n**Visual:** pill-shaped'],
   ['V021', '**Contains:** E-02, E-03', '**Contains:** E-02, E-03, E-77'],
   ['V022', '**Reveals:** C-02', '**Reveals:** C-99'],

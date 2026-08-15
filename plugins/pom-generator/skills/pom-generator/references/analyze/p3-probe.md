@@ -13,9 +13,9 @@ it is bookkeeping.
 
 ```
 while any element has Status: pending:
-    take the next pending element in traversal order
-    probe it
-    write the artifact
+    take the next pending element, class representatives first
+    probe it according to its Tier
+    write the artifact, update Meta.Spent
 ```
 
 That is the entire control flow. **Recursion is not a special case.** When a probe reveals a
@@ -26,6 +26,33 @@ does not.
 
 The old version of this document needed six nested sub-clauses to describe dialog handling. The
 queue replaces all of them.
+
+**Class representatives go first.** Everything that inherits from an element is blocked until that
+element has a real outcome, and probing the representative first means a class that turns out not
+to be a class is discovered while its members are still pending rather than after they have all
+been marked done.
+
+---
+
+## What each tier owes
+
+`Tier:` was assigned at survey and approved at Gate 1 (`02-artifact-schema.md`). It selects which
+of the steps below apply.
+
+| Tier | Steps | Terminal status |
+|---|---|---|
+| `full` | all of 1–9 | `probed` |
+| `class`, representative | all of 1–9, plus confirm the other members really do share its markup and handler | `probed` |
+| `class`, member | 2 and 9 only. Record `Class-ref:` and, in `Notes:`, what you checked to establish sameness | `probed-by-class` |
+| `evidence` | 2, 6 and 9. No action, no screenshots, no reset | `probed`, `Probe:` starting `Read` |
+
+A tier is a ceiling on cost, never a licence to conclude more than you observed. If an element
+turns out to be doing more than its tier assumed — a "link" that intercepts the click, a class
+member whose handler differs — **raise its tier and probe it properly.** Note the change at the end
+of the run; the Gate 1 estimate being wrong is normal and worth saying out loud.
+
+The reverse is not available. Lowering a tier mid-run to save time is how an unprobed element gets
+a plausible-looking entry.
 
 ---
 
@@ -84,7 +111,7 @@ Three things to check that are easy to skip:
 
 - **The element's own container.** A clear icon inside the input, a counter, a validation message,
   an icon that changed. These appear only in the acted-on state and are the most commonly missed
-  elements on any page (`rules/element.md` E10).
+  elements on any page (`rules/element.md` E11).
 - **The rest of the page.** Something enabled, hidden, repopulated, or re-counted elsewhere goes in
   `Affects:`.
 - **The console.** `browser_console_messages` — an error here explains a probe that appeared to do
@@ -115,10 +142,30 @@ entry.
 
 ### 9. Set a terminal status and write the file
 
-`probed`, `static-confirmed`, or `blocked-<reason>`. Then rewrite `analysis.md`.
+`probed`, `probed-by-class`, `static-confirmed`, or `blocked-<reason>`. Then update this element's
+block in `analysis.md` and bump `Meta.Spent`.
 
 **Write after every element, not at the end.** The file is the state of the run. A crash or a
 context compaction should cost one element.
+
+Edit the one `### E-nn` block. Rewriting the whole file after every element costs more as the run
+goes on, which is precisely backwards — the expensive rewrites land when the context is already
+under most pressure.
+
+---
+
+## The budget
+
+`Meta.Budget` holds the ceiling the user approved at Gate 1; `Meta.Spent` tracks against it.
+
+At **1.5× budget**, stop. Do not finish "just the remaining few". Write the artifact, then report:
+what is probed, what is still pending, what overran and why. The user decides whether to continue,
+narrow the scope, or take the artifact as it stands — a partial artifact with honest statuses is a
+usable result, and `Status: pending` on the rest is exactly the right record of where it stopped.
+
+Overrunning is not a failure; overrunning silently is. The single worst outcome this pipeline can
+produce is two hours of work that never reaches `/pom-generate`, because then the run cost
+everything and delivered nothing.
 
 ---
 

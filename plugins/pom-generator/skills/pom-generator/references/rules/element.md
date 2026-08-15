@@ -52,9 +52,18 @@ Two buttons that look alike routinely differ: one navigates, one opens a dialog,
 An analysis that carries a tested element's outcome across to an untested one *looks complete in
 the summary* while being unverified, which makes it worse than an obvious gap.
 
-The one legitimate exception is a repeated collection item (`collections/*`): probe one instance
-thoroughly, confirm the others share its structure, and **say in `Observed:` that this is what you
-did**. Silent extrapolation is not the same as declared extrapolation.
+The one legitimate exception is **declared** extrapolation, and the artifact has a shape for it:
+give the group a `Class:`, probe one member in full, and give the others `Status: probed-by-class`
+with a `Class-ref:` naming the one that did the work. V017 refuses a class where nobody was
+probed; V018 refuses an inherited outcome with nothing to inherit from.
+
+That mechanism is what makes the difference enforceable. Silent extrapolation *looks complete in
+the summary* while being unverified, which makes it worse than an obvious gap — a declared class
+says exactly which observation the conclusion rests on, and how many elements are leaning on it.
+
+Membership is a claim about markup, not about looks: same type, same container, same class stem or
+`data-*` prefix, same handler. Two identical-looking icon buttons in one toolbar are routinely a
+navigation and a dialog opener.
 
 ## E4. "Observed" is not an outcome for anything actionable
 
@@ -130,7 +139,27 @@ Casing and prefixes follow `conventions.md` — camelCase for TS/JS, snake_case 
 whatever getter/action prefixes the project already uses. The project's convention always wins
 over the shapes suggested in the catalog.
 
-## E10. State-dependent elements are elements
+## E10. Effort is proportional to what is at stake
+
+Every element carries a `Tier:` (`02-artifact-schema.md`), and the tiers exist because a flat
+per-element cost is what turns a page into a two-hour run that never reaches code generation. An
+analysis that is thorough about seven navigation links and never opens the dialog has spent its
+budget on the part nobody was going to get wrong.
+
+The invariant is not "be fast". It is:
+
+- **Spend `full` on what the page is for.** Dialogs, drawers, the controls that change the
+  collection, anything that reveals something, anything conditional.
+- **Never buy a conclusion cheaper than the evidence for it.** `Tier: evidence` is for markup that
+  already states the answer, which is why V019 refuses it for every family whose behaviour only
+  exists at interaction time.
+- **A tier may be raised mid-run, never lowered.** Discovering that a link intercepts its click, or
+  that a class member has a different handler, is a reason to probe it properly — not a reason to
+  keep the cheap tier and write a plausible sentence.
+- **A budget overrun is reported, not absorbed.** Stopping at 1.5× with honest `pending` statuses
+  beats an unbounded run, because the artifact is still usable and the user still has a decision.
+
+## E11. State-dependent elements are elements
 
 A clear (X) icon that exists only once text is typed, a validation message, a character counter, a
 "no results" state, a spinner — each is a real element with its own ID, discovered during probing
