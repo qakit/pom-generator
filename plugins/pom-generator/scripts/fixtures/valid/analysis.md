@@ -20,6 +20,13 @@ validator at this directory directly, which would report V015 failures.
 **Budget:** 60 tool calls
 **Spent:** 54
 
+## Delta
+**Against:** 2026-08-01T09:14:00Z
+**Added:** E-12 (employee search)
+**Removed:** E-13
+**Changed:** E-02 (options 4 -> 5)
+**Unchanged:** 9 elements
+
 ## Regions
 ### R-01 — Page header
 **Root:** `header[class*='_pageHeader_']`
@@ -34,7 +41,7 @@ validator at this directory directly, which would report V015 failures.
 **Resolves:** 1
 **Box:** 0,72,1440,64
 **Shot:** ./screens/R-02.png
-**Contains:** E-02, E-03, E-12
+**Contains:** E-02, E-03, E-12, E-13
 
 ### R-03 — Employees table
 **Root:** `div[data-aid='employees-table']`
@@ -232,6 +239,20 @@ validator at this directory directly, which would report V015 failures.
 **Locator-pw:** `getByRole('option', { name: 'Suspended' })`
 **Locator-agree:** yes
 **Status:** probed-by-class
+
+### E-13 — Export button
+**Region:** R-02
+**Scope:** R-02
+**Visual:** was an outline button reading "Export" to the left of Create; no longer rendered
+**Snapshot-ref:** e58
+**DOM:** `button[data-testid='export']` role=button
+**Selector:** `[data-testid='export']`
+**Resolves:** 0
+**Kind:** actionable
+**Type:** actions/button
+**Tier:** full
+**Notes:** looked for against a fresh load of the page and absent; the previous analysis probed it and recorded a CSV download
+**Status:** removed
 
 ### E-12 — Employee search
 **Region:** R-02

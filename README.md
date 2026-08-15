@@ -59,6 +59,22 @@ a probe reveals (a dialog, an autocomplete list, a clear button that only exists
 joins the queue and gets probed too. Output is `analysis.md`: a strict, machine-validated record.
 **No code is written in this step.**
 
+Four things it does that are easy to get wrong, and that most of the design is about:
+
+- **It tells you what it will cost, before it spends it.** At the first review gate you get an
+  element count, what each one is worth probing at, and an estimated number of browser calls. You
+  approve a plan with a price. Links get their `href` read rather than clicked seven times; twenty
+  identical checkboxes get one probed properly and nineteen declared as matching it.
+- **It measures how your app can be located** instead of assuming a convention. It scores every
+  candidate attribute, then reloads the page and compares — anything whose value changed is minted
+  by the framework and unusable, however good it looked in one snapshot. Apps with no test
+  attributes are a normal case, and structure or XPath is the right answer there.
+- **Every selector is checked against the page**, resolved inside the component that owns it. A
+  selector matching nothing, or matching several things, fails the run — so a locator copied from
+  memory or from your registry can't reach generated code.
+- **It types values that actually match.** A search box gets a term taken from data on screen, not
+  `test123`, because an empty result set tells you nothing about the control.
+
 **3. Generate** — reads the artifact and writes the Page Objects, reusing your existing wrapper
 classes where the registry matched and flagging genuinely new patterns for review. Then it opens
 the page again and highlights every generated selector to confirm it resolves to the element you
@@ -80,9 +96,19 @@ It rejects, among other things:
 
 - any element left unprobed
 - an actionable element whose recorded probe is "Observed" rather than a real action
+- **a dropdown that was opened and closed** rather than selected from — a legal action, and not a
+  probe of a dropdown. This is the one that silently produces "that field doesn't exist" for a
+  field that only appears once you pick a value
+- a selector that matches nothing on the page, or matches several things with nothing to say why
+- a screenshot whose dimensions don't match the element it's filed under
+- a search input probed with a value that couldn't have matched anything
+- an element deleted on re-analysis without evidence that the page no longer has it
 - a dialog that was opened but never turned into a component file
 - a locator inside a component that reaches up to the page
 - a region that no component in the tree accounts for
+
+The rules are language-neutral: a Python wrapper rooted at `self.element` validates on exactly the
+same terms as a TypeScript one rooted at `this.element`.
 
 `/pom-generate` runs it first and **writes nothing on a non-zero exit**. This is the difference
 between "the instructions said to check everything" and "the run cannot proceed until it has."

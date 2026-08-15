@@ -305,7 +305,7 @@ Each rule applies from the phase listed and at every later phase.
 | V003 | survey | Every field line parses as `**Name:** value`; every field name is known |
 | V004 | survey | Every block header matches `### (R\|E)-\d{2,} — <name>`; IDs unique |
 | V010 | probed | No element has `Status: pending` |
-| V011 | probed | Every `Kind: actionable` element's `Probe:` starts with a legal action verb. **`Observed` is rejected** |
+| V011 | probed | Every `Kind: actionable` element's `Probe:` starts with a legal action verb — and, for a type whose catalog entry names a required action, **that** verb. Opening a select and closing it is `Clicked`, which is a legal verb and not a probe of a select. **`Observed` is rejected** |
 | V012 | probed | Every `Kind: actionable` element has a non-empty `Observed:` of at least 20 characters |
 | V013 | survey | Every `Type:` exists in `catalog/index.md` |
 | V014 | survey | `Kind: static` requires `Status: static-confirmed`; `Kind: actionable` forbids it |
@@ -339,6 +339,7 @@ Each rule applies from the phase listed and at every later phase.
 | V051 | survey | Every region's `Contains:` is non-empty |
 | V052 | decomposed | Every element belongs to a component or is explicitly listed as page-level in the tree |
 | V060 | generated | Every manifest row has `Status: written` or `verified` or `skipped-reuse` |
+| V061 | probed | `Status: removed` requires `Resolves: 0` against a fresh load **and** an entry in the `## Delta`'s `Removed:` — an element cannot be deleted by assertion |
 
 ### Warnings
 

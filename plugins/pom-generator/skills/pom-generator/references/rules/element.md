@@ -41,7 +41,14 @@ A lesser action never substitutes for the required one.
 
 If you find yourself writing a conclusion like "it doesn't do X" on the strength of an action
 lighter than the type requires, that conclusion is unearned. The required action per type is the
-`**Required probe:**` line of the catalog entry.
+`**Required probe:**` line of the catalog entry, and **V011 enforces it** — the verb has to be the
+one that type's behaviour is observable through, not merely a legal verb.
+
+That distinction is the whole point. Opening a dropdown, looking at the options and pressing Escape
+is honestly recorded as `Probe: Clicked`, which passes every generic check while leaving the
+selection behaviour untested — along with anything a selection would have revealed. A conditional
+field that appears only once a value is chosen does not exist yet at the moment you press Escape,
+and "I did not see it" then gets written down as "it is not there".
 
 ## E3. Behaviour is never inferred from another element
 

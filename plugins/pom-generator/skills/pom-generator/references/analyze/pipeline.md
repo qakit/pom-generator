@@ -78,6 +78,14 @@ If `analysis.md` already exists for this slug, this is a re-analysis. Do not ove
    re-probing a control that did not change wastes a run and gains nothing.
 6. Removed elements keep their IDs and get `Status: removed`. Never renumber.
 
+**Removal needs evidence, not an impression** (V061). An element may only be marked `removed` when
+its `Selector:` was resolved against a fresh load of the page and came back `Resolves: 0`, and the
+`## Delta` lists it under `Removed:`. Absence from a snapshot is not the same as absence from the
+page: a control inside a collapsed panel, behind a tab, or conditional on another field's value is
+missing from the snapshot and present in the app. Deleting on that basis is how a real element gets
+written out of an artifact, and unlike every other error in this pipeline it destroys information
+rather than adding a wrong one.
+
 Present the delta at Gate 1. A delta of "nothing changed" is a complete and useful result — say so
 and stop rather than manufacturing work.
 

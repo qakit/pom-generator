@@ -116,6 +116,43 @@ const VALUE_SOURCES = ['page-data', 'constraint', 'label', 'synthetic'];
 const MATCHING_TYPES = ['inputs/search', 'inputs/autocomplete'];
 
 /**
+ * The action a type's behaviour is only observable through, transcribed from each catalog
+ * entry's `**Required probe:**` line.
+ *
+ * The general verb check (V011) asks whether *an* action happened. That is not enough for the
+ * types listed here, because the cheap action and the required one are both legal verbs: you can
+ * click a dropdown open, look at it, press Escape, and record `Probe: Clicked` — a sentence that
+ * passes every check while leaving the selection behaviour, and anything a selection reveals,
+ * entirely untested. The catalog has always said so in prose. This is the same rule with teeth.
+ *
+ * Absent from this table means the catalog accepts any real action for that type.
+ */
+const REQUIRED_VERBS = {
+  'inputs/text': ['Typed'],
+  'inputs/textarea': ['Typed'],
+  'inputs/number': ['Typed'],
+  'inputs/search': ['Typed'],
+  'inputs/autocomplete': ['Typed', 'Selected'],
+  'inputs/masked': ['Typed'],
+  'inputs/rich-text': ['Typed'],
+  'inputs/password': ['Typed'],
+  'selection/single-select': ['Selected'],
+  'selection/multi-select': ['Selected'],
+  'selection/radio-group': ['Selected'],
+  'selection/segmented': ['Selected', 'Clicked'],
+  'selection/checkbox': ['Toggled', 'Checked', 'Unchecked'],
+  'selection/toggle': ['Toggled', 'Checked', 'Unchecked'],
+  'selection/slider': ['Dragged', 'Pressed'],
+  'temporal/date': ['Selected', 'Typed'],
+  'temporal/datetime': ['Selected', 'Typed'],
+  'temporal/date-range': ['Selected', 'Typed'],
+  'collections/sortable-header': ['Clicked'],
+  'collections/pagination': ['Clicked'],
+  'collections/tree': ['Expanded', 'Clicked'],
+  'collections/virtualized-list': ['Scrolled'],
+};
+
+/**
  * Values a framework mints at runtime or a bundler mints at build time. They look like perfectly
  * good hooks in a single snapshot and differ on the next load or the next deploy, which makes
  * them the one selector defect that gets past grounding, compilation and a first green run.
@@ -171,6 +208,7 @@ const RULE_DESC = {
   V047: 'scope chain must reach the page without looping',
   V048: 'an element can only be scoped inside a container in its own region',
   V049: 'a typed probe must record where its value came from',
+  V061: 'a removed element must show the page no longer has it',
   V070: 'region screenshot must exist on disk',
   V071: 'Box must be four numbers describing a rendered element',
   V072: 'screenshot does not match the box it claims to show',
@@ -450,7 +488,7 @@ export function validateContent(content, opts = {}) {
    *
    * Returns the parsed count so callers can use it.
    */
-  const checkResolves = (o, selectorField) => {
+  const checkResolves = (o, selectorField, expectGone = false) => {
     const raw = fv(o, 'Resolves');
     if (raw === undefined) return null;
     if (!/^\d+$/.test(raw.trim())) {
@@ -458,7 +496,8 @@ export function validateContent(content, opts = {}) {
       return null;
     }
     const n = Number.parseInt(raw, 10);
-    if (n === 0) {
+    // for a removed element, zero is the evidence rather than the defect (V061)
+    if (n === 0 && !expectGone) {
       err('V044', fl(o, selectorField), o.id,
         `${selectorField} matched nothing — it was not taken from the page it describes`);
     }
@@ -550,6 +589,9 @@ export function validateContent(content, opts = {}) {
         if (!isActionable || inherited || status === 'removed'
             || (status || '').startsWith('blocked-')) continue;
       }
+      // a removed element keeps its history but has no geometry to measure and no wrapper to
+      // write; what it does still owe is the evidence that it is gone (V061)
+      if (status === 'removed' && ['Box', 'Registry', 'Locator'].includes(name)) continue;
       if (!e.fields.has(name)) err('V003', e.line, e.id, `missing required field "${name}"`);
     }
 
@@ -631,9 +673,31 @@ export function validateContent(content, opts = {}) {
       }
     }
 
-    // ---- V043 / V044 / V045
-    const resolves = checkResolves(e, 'Selector');
+    // ---- V043 / V044 / V045 / V061
+    const isRemoved = status === 'removed';
+    const resolves = checkResolves(e, 'Selector', isRemoved);
     const elBox = checkBox(e);
+    if (isRemoved) {
+      // Deleting an element is the one edit that destroys information, and it used to need no
+      // evidence at all: setting the status was enough to skip every probe requirement. That is
+      // how a conditional control -- one that only exists after some other field is set -- gets
+      // written out of an artifact on the strength of not having been seen.
+      if (resolves === null) {
+        err('V061', fl(e, 'Status'), e.id,
+          'removal needs Resolves: 0 recorded against a fresh load of the page');
+      } else if (resolves > 0) {
+        err('V061', fl(e, 'Resolves'), e.id,
+          `still resolves to ${resolves} node(s) — it is present, not removed`);
+      }
+      const gone = list(fv(doc.delta || { fields: new Map() }, 'Removed'))
+        .map((t) => t.split(/\s|\(/)[0]);
+      if (!doc.delta) {
+        err('V061', fl(e, 'Status'), e.id,
+          'an element can only be removed by a re-analysis, which must write a ## Delta section');
+      } else if (!gone.includes(e.id)) {
+        err('V061', fl(e, 'Status'), e.id, `not listed in the Delta's Removed: field`);
+      }
+    }
     // Resolves is counted *within* Scope, so >1 is a genuine collection (rows, options, cards)
     // rather than the artifact of asking a document-wide question about a component-local
     // selector. A collection is addressed by index or text at runtime, so it is expected.
@@ -724,6 +788,12 @@ export function validateContent(content, opts = {}) {
       // the DOM already carries. It is honest there and a dodge anywhere else.
       if (verb === 'Read' && tier !== 'evidence') {
         err('V011', fl(e, 'Probe'), e.id, '"Read" is only a probe at Tier: evidence');
+      }
+      const needed = REQUIRED_VERBS[type];
+      if (needed && !needed.includes(verb)) {
+        err('V011', fl(e, 'Probe'), e.id,
+          `${type} is only exercised by ${needed.join(' or ')}, not "${verb}" — `
+          + 'see its catalog entry');
       }
       const observed = fv(e, 'Observed') || '';
       if (observed.length < 20) {
@@ -986,7 +1056,8 @@ const MUTATIONS = [
   ['V001', '# Analysis: Employees', '# Employees'],
   ['V002', '## Output manifest', '## Outputs'],
   ['V003', '**Viewport:** 1440x900', '**Viewport:** big'],
-  ['V003', '**Kind:** actionable\n**Type:** actions/button', '**Knid:** actionable\n**Type:** actions/button'],
+  ['V003', '**Kind:** actionable\n**Type:** actions/button\n**Tier:** full\n**Probe:** Clicked',
+    '**Knid:** actionable\n**Type:** actions/button\n**Tier:** full\n**Probe:** Clicked'],
   ['V004', '### E-03 — Create employee', '### E-03 Create employee'],
   ['V010', '**Locator-agree:** no — project convention is data-aid first\n**Status:** probed',
     '**Locator-agree:** no — project convention is data-aid first\n**Status:** pending'],
@@ -1032,6 +1103,12 @@ const MUTATIONS = [
   ['V048', '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** R-04',
     '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** E-05'],
   ['V049', '**Probe:** Typed "Rivera"\n**Value-source:** page-data', '**Probe:** Typed "Rivera"'],
+  // opening a dropdown and closing it again, recorded as though it were a probe
+  ['V011', '**Type:** selection/single-select\n**Tier:** full\n**Probe:** Selected "Active"',
+    '**Type:** selection/single-select\n**Tier:** full\n**Probe:** Clicked'],
+  // an element declared gone while the page still has it
+  ['V061', "**Selector:** `[data-testid='export']`\n**Resolves:** 0",
+    "**Selector:** `[data-testid='export']`\n**Resolves:** 1"],
   ['V070', '**Shot:** ./screens/R-03.png', '**Shot:** ./screens/gone.png'],
   ['V071', '**Box:** 0,72,1440,64', '**Box:** 0,72,1440'],
   // the fixture's R-04 crop is generated at 600x420; claiming a taller box makes the image

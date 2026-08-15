@@ -367,18 +367,18 @@
 <div class="wrap">
 
   <header>
-    <p class="eyebrow">pom-generator v2.0.0 · file map</p>
+    <p class="eyebrow">pom-generator v2.1.0 · file map</p>
     <h1>Which file is used when</h1>
     <p class="lede">
-      The plugin is 43 files, but almost none of them load at once. Each phase opens a small,
+      The plugin is 45 files, but almost none of them load at once. Each phase opens a small,
       specific set — a procedure telling it what to do, the invariants that constrain it, and a
       lookup consulted per element. This is that map.
     </p>
     <div class="meta-strip">
-      <span><b>43</b> files</span>
-      <span><b>27</b> reference documents</span>
+      <span><b>45</b> files</span>
+      <span><b>29</b> reference documents</span>
       <span><b>9</b> commands</span>
-      <span><b>1</b> validator, <b>0</b> dependencies</span>
+      <span><b>45</b> validator rules, <b>0</b> dependencies</span>
     </div>
   </header>
 
@@ -437,7 +437,7 @@
 
         <!-- gates -->
         <line x1="405" y1="38" x2="405" y2="110" class="gate-ln"/>
-        <text x="405" y="30" text-anchor="middle" class="m t-accent" font-size="10" letter-spacing=".08em">GATE 1</text>
+        <text x="405" y="30" text-anchor="middle" class="m t-accent" font-size="10" letter-spacing=".08em">GATE 1 · BUDGET</text>
         <line x1="595" y1="38" x2="595" y2="110" class="gate-ln"/>
         <text x="595" y="30" text-anchor="middle" class="m t-accent" font-size="10" letter-spacing=".08em">GATE 2</text>
 
@@ -449,7 +449,7 @@
         <line x1="880" y1="104" x2="880" y2="158" class="ln-acc" marker-end="url(#a-acc)"/>
 
         <text x="120" y="131" text-anchor="middle" class="m sm">Meta</text>
-        <text x="310" y="131" text-anchor="middle" class="m sm">Regions + Elements</text>
+        <text x="310" y="131" text-anchor="middle" class="m sm">Regions + Elements, grounded</text>
         <text x="500" y="131" text-anchor="middle" class="m sm">tree + manifest</text>
         <text x="690" y="131" text-anchor="middle" class="m sm">probe results</text>
         <text x="880" y="131" text-anchor="middle" class="m sm">locators</text>
@@ -464,7 +464,7 @@
         <!-- validator -->
         <rect x="368" y="254" width="264" height="46" rx="6" class="box-open"/>
         <text x="500" y="274" text-anchor="middle" class="m bold" font-size="12.5">validate-analysis.mjs</text>
-        <text x="500" y="291" text-anchor="middle" class="sm">26 rules · phase-aware</text>
+        <text x="500" y="291" text-anchor="middle" class="sm">45 rules · phase-aware</text>
 
         <!-- fail branch -->
         <path d="M400 300 L400 324 L215 324 L215 344" class="ln-stop" marker-end="url(#a-stop)"/>
@@ -538,10 +538,10 @@
 
         <!-- lane 2: invariants -->
         <text x="0" y="146" class="m t-rule bold" font-size="11.5">INVARIANTS</text>
-        <text x="0" y="162" class="sm">rules/ · 00-safety</text>
+        <text x="0" y="162" class="sm">rules/ · 00-safety · 04 · 05</text>
         <text x="0" y="176" class="sm">“what must be true”</text>
         <rect x="194" y="134" width="742" height="26" rx="4" class="bx-rule"/>
-        <text x="565" y="151" text-anchor="middle" class="m t-rule bold" font-size="10.5">element · component · page · flow · safety — apply continuously, never “done”</text>
+        <text x="565" y="151" text-anchor="middle" class="m t-rule bold" font-size="10.5">element · component · page · flow · safety · selectors · probe values — never “done”</text>
 
         <!-- lane 3: lookup -->
         <text x="0" y="216" class="m t-look bold" font-size="11.5">LOOKUP</text>
@@ -649,15 +649,19 @@
         <div class="rail"><span class="num">P1</span></div>
         <div class="phase-body">
           <div class="phase-head"><h3>Survey</h3><span class="tag gate">stops at gate 1</span></div>
-          <p class="what">Screenshots the page and partitions it <em>visually</em> before reading the DOM — that is what catches “these five controls are one filter panel”. Then enumerates every element, plus a second sweep for icon-only buttons, hover-revealed controls, and anything outside the main column.</p>
+          <p class="what">Screenshots the page and partitions it <em>visually</em> before reading the DOM — that is what catches “these five controls are one filter panel”. Then measures how this app can be located at all, enumerates every element, scopes each one to the thing that owns it, and resolves every selector against the live page before a single crop is trusted. Ends by pricing the probe run.</p>
+          <p class="what">Three of its thirteen steps exist because of failures that are otherwise invisible: <em>the strategy probe</em> reloads the page and compares, so a framework-minted id can’t pass as a stable hook; <em>grounding</em> rejects a selector that matches nothing or matches several things; and <em>the budget</em> turns “this will take a while” into a number you approve before it is spent.</p>
           <div class="io">
             <div class="io-col">
               <span class="io-label">Reads</span>
               <div class="chips">
                 <span class="chip proc">analyze/p1-survey.md</span>
+                <span class="chip found">04-selectors.md</span>
+                <span class="chip found">03-toolbelt.md</span>
                 <span class="chip rule">rules/element.md</span>
                 <span class="chip rule">rules/page.md</span>
                 <span class="chip look">catalog/index.md</span>
+                <span class="chip repo">conventions.md</span>
               </div>
             </div>
             <div class="io-col">
@@ -665,6 +669,9 @@
               <div class="chips">
                 <span class="chip art">## Regions</span>
                 <span class="chip art">## Elements — all pending</span>
+                <span class="chip art">Scope · Selector · Resolves · Box</span>
+                <span class="chip art">Tier · Class</span>
+                <span class="chip art">Meta.Selector-strategy · Meta.Budget</span>
                 <span class="chip art">screens/baseline.png · R-nn.png</span>
               </div>
             </div>
@@ -704,13 +711,15 @@
       <article class="phase">
         <div class="rail"><span class="num">P3</span></div>
         <div class="phase-body">
-          <div class="phase-head"><h3>Probe</h3><span class="tag quiet">unattended</span></div>
-          <p class="what">Drains the pending queue. Types into inputs, selects from dropdowns, toggles checkboxes, clicks buttons — and records what actually happened. A revealed dialog simply appends more pending rows, so recursion needs no special handling. The artifact is rewritten after <em>every</em> element.</p>
+          <div class="phase-head"><h3>Probe</h3><span class="tag quiet">unattended · budgeted</span></div>
+          <p class="what">Drains the pending queue at the tier each element was priced at. Types into inputs, selects from dropdowns, toggles checkboxes, clicks buttons — and records what actually happened. A revealed dialog simply appends more pending rows, so recursion needs no special handling. The artifact is rewritten after <em>every</em> element, and the run stops at 1.5× budget rather than until somebody gives up.</p>
+          <p class="what">Two things stop a probe from looking complete while having tested nothing. The required action is checked <em>per type</em> — opening a dropdown and pressing Escape is honestly <code>Clicked</code>, and is not a probe of a dropdown. And each action is diffed against the element’s own <em>scope</em>, so a field that appears only after a value is chosen falls out of the comparison instead of depending on someone thinking to look for it.</p>
           <div class="io">
             <div class="io-col">
               <span class="io-label">Reads — one catalog family per element</span>
               <div class="chips">
                 <span class="chip proc">analyze/p3-probe.md</span>
+                <span class="chip found">05-probe-values.md</span>
                 <span class="chip look">catalog/inputs.md</span>
                 <span class="chip look">catalog/selection.md</span>
                 <span class="chip look">catalog/actions.md</span>
@@ -726,7 +735,9 @@
               <span class="io-label">Writes</span>
               <div class="chips">
                 <span class="chip art">Probe · Observed · Reset</span>
+                <span class="chip art">Value-source</span>
                 <span class="chip art">Reveals · Affects</span>
+                <span class="chip art">Meta.Spent</span>
                 <span class="chip art">screens/E-nn-before|after.png</span>
               </div>
             </div>
@@ -739,12 +750,14 @@
         <div class="rail"><span class="num">P4</span></div>
         <div class="phase-body">
           <div class="phase-head"><h3>Classify</h3></div>
-          <p class="what">Matches each element against the registry, authors the locator from your conventions, then cross-checks it against Playwright's own and highlights it on the page to confirm it lands on the element you meant.</p>
+          <p class="what">Matches each element against the registry, authors the locator from your conventions, re-grounds the final selector set, then cross-checks against Playwright's own and highlights it on the page. Grounding proves a selector is real and unambiguous; only looking proves it points at the control you described.</p>
+          <p class="what">A registry match is a hypothesis about which class wraps an element — <em>never</em> a source of selectors. A selector copied out of the registry and into code without touching the page is the failure this phase is shaped around.</p>
           <div class="io">
             <div class="io-col">
               <span class="io-label">Reads</span>
               <div class="chips">
                 <span class="chip proc">analyze/p4-classify.md</span>
+                <span class="chip found">04-selectors.md</span>
                 <span class="chip rule">rules/element.md</span>
                 <span class="chip rule">rules/component.md</span>
                 <span class="chip repo">component-registry.md</span>
@@ -756,6 +769,7 @@
               <div class="chips">
                 <span class="chip art">Registry · Locator</span>
                 <span class="chip art">Locator-pw · Locator-agree</span>
+                <span class="chip art">Resolves · Box — re-grounded</span>
                 <span class="chip art">## Delta — on a re-run</span>
               </div>
             </div>
@@ -859,7 +873,7 @@
   <section>
     <div class="prose">
       <p class="eyebrow">Inventory</p>
-      <h2>All 43 files</h2>
+      <h2>All 45 files</h2>
     </div>
 
     <div class="table-shell">
@@ -877,13 +891,13 @@
           <tr>
             <td class="mono-cell">skills/…/SKILL.md</td>
             <td><span class="kind-dot" style="background:var(--k-found)"></span>Router</td>
-            <td class="n">1</td><td class="n">87</td>
+            <td class="n">1</td><td class="n">91</td>
             <td>When the skill is invoked</td>
           </tr>
           <tr>
-            <td class="mono-cell">references/00–03</td>
+            <td class="mono-cell">references/00–05</td>
             <td><span class="kind-dot" style="background:var(--k-found)"></span>Foundation</td>
-            <td class="n">4</td><td class="n">627</td>
+            <td class="n">6</td><td class="n">1,106</td>
             <td>Every phase</td>
           </tr>
           <tr>
