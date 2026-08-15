@@ -49,15 +49,37 @@ One call, every selector, and it is the cheapest accuracy in the whole pipeline.
 of P1 (so region crops are taken against roots that are known to exist) and again at the end of P4
 (so the final selector set is checked as a set).
 
+**Selectors are resolved inside their `Scope:`, not against the document.** That is the whole
+point: a Page Object locates from the component that owns it, so a cell selector asked of the
+document returns one match per row and asked of a row returns one. The document-wide number is not
+the number the wrapper will see, and validating against it would push every selector toward being
+page-absolute — the opposite of what `rules/element.md` E7 requires.
+
+Build each entry's chain by walking `Scope:` outward to `page`, then resolve it inner-first:
+
 ```js
 // browser_evaluate
 (() => {
-  const ids = { "R-01": "header[data-aid='layout_header']",
-                "E-04": "[data-aid='status-filter']" /* ...every Root and Selector... */ };
+  // chain = the Root/Selector of each ancestor, outermost first
+  const ids = {
+    "R-02": { chain: [], sel: "div[class*='_filterPanel_']" },
+    "E-04": { chain: ["div[class*='_filterPanel_']"], sel: "[data-testid='status-filter']" },
+    "E-11": { chain: ["div[class*='_table_']", "tbody tr"], sel: "[class*='_nameCell_']" },
+  };
   const out = {};
-  for (const [id, sel] of Object.entries(ids)) {
+  for (const [id, { chain, sel }] of Object.entries(ids)) {
+    let root = document;
+    try {
+      // first match at every level, which is what .first() / .nth(0) does at runtime
+      for (const step of chain) {
+        root = root.querySelector(step);
+        if (!root) break;
+      }
+    } catch { out[id] = { error: 'invalid scope selector' }; continue; }
+    if (!root) { out[id] = { resolves: 0, box: null, note: 'scope did not resolve' }; continue; }
+
     let nodes = [];
-    try { nodes = [...document.querySelectorAll(sel)]; }
+    try { nodes = [...root.querySelectorAll(sel)]; }
     catch { out[id] = { error: 'invalid selector' }; continue; }
     const r = nodes[0]?.getBoundingClientRect();
     out[id] = {
@@ -72,6 +94,10 @@ of P1 (so region crops are taken against roots that are known to exist) and agai
 Write `resolves` into `Resolves:` and `box` into `Box:` verbatim. Do not round a `0` up to a `1`
 because the element is obviously there — a zero is the finding (V044), and it means the selector
 was written from memory, from the component registry, or from a different page.
+
+A count above 1 is only expected where the element *is* the collection — a row, a card, an option
+— which is addressed by index or text at runtime. Anything else at 2 or more is a wrapper that will
+silently take the first match (V045).
 
 **Ground before cropping, not after.** A region screenshot taken against an unverified root is how
 a crop of the page header ends up filed as the filter panel, with thirteen elements citing it as

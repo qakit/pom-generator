@@ -99,6 +99,33 @@ two clicks for a sortable header, both ends of a date range.
 `browser_take_screenshot` → `screens/E-nn-after.png`, and **read it**. Then `browser_snapshot` and
 compare. Then `browser_network_requests`.
 
+**Diff the scope, not the page.** Before acting, take a structural signature of the element's
+`Scope:` subtree; take it again after, and subtract:
+
+```js
+// browser_evaluate, once before the action and once after
+[...document.querySelector(SCOPE_SELECTOR)
+  .querySelectorAll('input,select,textarea,button,a,[role],[data-testid],[data-qa],[contenteditable]')]
+  .map(n => `${n.tagName}|${n.getAttribute('role')||''}|${n.id||''}|${(n.className||'').toString().slice(0,40)}`)
+```
+
+Anything in the "after" list that was not in the "before" list **came into existence because of
+this probe**, and joins the queue as a new `E-nn` with `Status: pending`. Anything that vanished
+is recorded too.
+
+This is the mechanism, and it replaces having to think to look. Conditional fields are the case it
+exists for: a form where choosing a type reveals a date field, a link that swaps itself for the
+textarea it was offering, a control that appears only once another has a value. None of these are
+in the baseline snapshot the inventory was built from, and none of them are discoverable by reading
+the DOM before the action — they do not exist yet.
+
+Scoping the diff is what makes it usable. A page-wide diff on a filtered table is thousands of
+changed rows and the one new field is lost in it; the same diff bounded to the dialog is a list of
+one. That is why `Scope:` for an element inside an overlay is the overlay, and for an element in a
+panel of similar controls is that panel.
+
+Changes *outside* the scope are a different finding and go in `Affects:`.
+
 Write `Observed:` with what actually changed, concretely:
 
 > listbox opened with 4 options (All, Active, Suspended, Archived); GET /api/employees?status=active

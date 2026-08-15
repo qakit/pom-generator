@@ -40,7 +40,7 @@ validator at this directory directly, which would report V015 failures.
 **Resolves:** 1
 **Box:** 0,136,1140,700
 **Shot:** ./screens/R-03.png
-**Contains:** E-04
+**Contains:** E-04, E-10, E-11
 
 ### R-04 — Create employee dialog
 **Root:** `div[role='dialog']`
@@ -61,6 +61,7 @@ validator at this directory directly, which would report V015 failures.
 ## Elements
 ### E-01 — Page title
 **Region:** R-01
+**Scope:** page
 **Visual:** large bold heading reading "Employees", top left of the content area
 **Snapshot-ref:** e11
 **DOM:** `h1[class*='_title_']` role=heading level=1
@@ -77,6 +78,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-02 — Status filter
 **Region:** R-02
+**Scope:** R-02
 **Visual:** pill-shaped control with a grey border and a chevron on the right, reads "All statuses"
 **Snapshot-ref:** e47
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
@@ -100,6 +102,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-03 — Create employee
 **Region:** R-02
+**Scope:** R-02
 **Visual:** solid blue button, white text, right-aligned in the filter bar
 **Snapshot-ref:** e52
 **DOM:** `button[data-aid='create']` role=button
@@ -123,6 +126,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-04 — Employees table
 **Region:** R-03
+**Scope:** page
 **Visual:** full-width table, 6 columns, zebra striping, 84 rows before filtering
 **Snapshot-ref:** e60
 **DOM:** `div[data-aid='employees-table']` role=table
@@ -139,6 +143,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-05 — Full name field
 **Region:** R-04
+**Scope:** R-04
 **Visual:** single-line bordered text box under a "Full name" label, first field in the dialog
 **Snapshot-ref:** e71
 **DOM:** `input[data-aid='full-name']` type=text
@@ -161,6 +166,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-06 — Active option
 **Region:** R-05
+**Scope:** R-05
 **Visual:** second row of the opened option list, hover highlight, no checkmark
 **Snapshot-ref:** e49
 **DOM:** `li[role='option']` aria-selected=false
@@ -184,6 +190,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-07 — Clear full name
 **Region:** R-04
+**Scope:** R-04
 **Visual:** small grey X icon inside the right edge of the name field, only present once text is entered
 **Snapshot-ref:** e73
 **DOM:** `button[class*='_clear_']` role=button aria-label="Clear"
@@ -205,6 +212,7 @@ validator at this directory directly, which would report V015 failures.
 
 ### E-08 — Suspended option
 **Region:** R-05
+**Scope:** R-05
 **Visual:** third row of the same option list, identical shape and padding to the Active row
 **Snapshot-ref:** e50
 **DOM:** `li[role='option']` aria-selected=false
@@ -223,8 +231,45 @@ validator at this directory directly, which would report V015 failures.
 **Locator-agree:** yes
 **Status:** probed-by-class
 
+### E-10 — Employee row
+**Region:** R-03
+**Scope:** E-04
+**Visual:** one striped row of the table, avatar then name then department then a chevron
+**Snapshot-ref:** e63
+**DOM:** `tbody tr` role=row
+**Selector:** `tbody tr`
+**Resolves:** 84
+**Box:** 0,180,1140,48
+**Kind:** container
+**Type:** containers/card
+**Notes:** 84 within the table, which is the collection itself — addressed by index or by name at runtime, not by a unique selector
+**Registry:** NEW
+**Locator:** `this.element.locator("tbody tr")`
+**Locator-pw:** `getByRole('row')`
+**Locator-agree:** yes
+**Status:** probed
+
+### E-11 — Row employee name
+**Region:** R-03
+**Scope:** E-10
+**Visual:** bold name with a smaller grey department line beneath it, left of each row
+**Snapshot-ref:** e64
+**DOM:** `div[class*='_nameCell_']`
+**Selector:** `[class*='_nameCell_']`
+**Resolves:** 1
+**Box:** 56,188,240,32
+**Kind:** static
+**Type:** other/text-label
+**Notes:** 84 of these in the document and exactly one inside a row — which is why Resolves is counted within Scope
+**Registry:** NEW
+**Locator:** `this.element.locator("[class*='_nameCell_']")`
+**Locator-pw:** `getByRole('cell').first()`
+**Locator-agree:** no — Playwright indexes the cell, the wrapper reads it from inside the row component
+**Status:** static-confirmed
+
 ### E-09 — Back to dashboard
 **Region:** R-01
+**Scope:** page
 **Visual:** small text link with a left chevron, above the page title
 **Snapshot-ref:** e09
 **DOM:** `a[href='/dashboard']` role=link

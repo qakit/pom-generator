@@ -67,9 +67,9 @@ Before taking a single crop, run the grounding pass from `03-toolbelt.md` over e
 Write what comes back into `Resolves:` and `Box:`.
 
 This step exists because the failure it prevents is silent. A `Root:` selector that was guessed
-rather than read — `_filtersContainer` when the page says `_filterContainer`, `_singleCheckboxes`
-when the panel is somewhere else entirely — still produces a screenshot. It is just a screenshot of
-the wrong thing, or of nothing, and every element filed under that region then cites it as visual
+rather than read — a plausible class stem that is off by one character, or one that belongs to a
+different part of the page entirely — still produces a screenshot. It is just a screenshot of the
+wrong thing, or of nothing, and every element filed under that region then cites it as visual
 evidence.
 
 - `Resolves: 0` → the selector is wrong. Fix it and re-ground. Do not crop.
@@ -92,7 +92,8 @@ quietly becoming the basis for a dozen element descriptions.
 
 For each region, list every element: every input, button, icon-button, dropdown, checkbox, tab,
 link, and every container that groups them. One `### E-nn` block per element, with `Region`,
-`Visual`, `Snapshot-ref`, `DOM`, `Kind`, `Type`, `Status: pending`.
+`Scope`, `Visual`, `Snapshot-ref`, `DOM`, `Selector`, `Kind`, `Type`, `Status: pending`.
+`Resolves` and `Box` are filled in by the grounding pass two steps down.
 
 Write `Visual:` from the region screenshot **before** reading the DOM for that element
 (`rules/element.md` E1). Shape, colour, iconography, position — what a person sees. Then `DOM:`.
@@ -104,10 +105,28 @@ Do not enumerate the cells of a repeating row as page elements. One row is a com
 cells are that component's accessors — see `rules/component.md` C7. Twenty rows × six cells is not
 an inventory of 120 elements.
 
-### 7. Ground the elements
+### 7. Give every element a scope
 
-Run the grounding pass again, this time over every element's `Selector:`, and write back
-`Resolves:` and `Box:`.
+`Scope:` is what the element is located *from*: `page`, a region, or a container element
+(`02-artifact-schema.md`). Assign it before grounding, because it is the frame the grounding pass
+counts in.
+
+Follow the containment chain inward. A cell is scoped to its row, the row to the table, the table
+to the panel — and a control sitting loose in a panel is scoped to that panel. Where a region was
+not extracted as a component, its elements are scoped to `page`: the scope is whichever class will
+hold the getter, not merely what the element is drawn inside.
+
+Two things this immediately buys, both of which the phases downstream depend on:
+
+- a cell selector counted inside a row is `1` instead of one-per-row, so a perfectly good selector
+  stops looking ambiguous;
+- an element inside an overlay has that overlay as its diff boundary during probing, which is what
+  makes a conditionally revealed field visible.
+
+### 8. Ground the elements
+
+Run the grounding pass again, this time over every element's `Selector:`, resolved through its
+scope chain, and write back `Resolves:` and `Box:`.
 
 `Selector:` is the raw CSS or XPath string and nothing else — no `this.element`, no language. The
 wrapper expression comes later, in `Locator:` at P4, and W007 checks that the two still agree.
@@ -118,7 +137,7 @@ means the selector came from somewhere other than this page — memory, the comp
 similar-looking control elsewhere in the app. That is precisely the error worth catching, and it
 costs one tool call to catch every instance of it at once.
 
-### 8. Assign a tier, and find the equivalence classes
+### 9. Assign a tier, and find the equivalence classes
 
 Every `Kind: actionable` element gets a `Tier:` now (`02-artifact-schema.md`), because the Gate 1
 estimate is computed from it. This is the step that decides whether P3 takes twenty minutes or two
@@ -142,7 +161,7 @@ and a shared handler, not a shared shape.
 Budget arithmetic: `full` ≈ 10 tool calls, a class ≈ 10 for its representative plus 1 each after,
 `evidence` ≈ 0.
 
-### 9. The second sweep — this is not optional
+### 10. The second sweep — this is not optional
 
 Everything above finds the obvious elements. This step finds the ones that get missed, and the
 list is drawn from what has actually been missed before:
@@ -171,14 +190,14 @@ browser_press_key  Tab          — walk focus through the page; every stop is a
 The Tab walk is the strongest completeness check available, because the browser's own focus order
 enumerates exactly the set of things that are interactive.
 
-### 10. Register the queue
+### 11. Register the queue
 
 If a todo tool is available, register **one task per element**. Not one task called "analyze
 elements" — one per element, marked complete only when a real observed outcome exists.
 
 The artifact is the durable queue; the todo list is the working view of it. Both, not either.
 
-### 11. Validate
+### 12. Validate
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" --phase=survey .pom-generator/analysis/<slug>

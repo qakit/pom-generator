@@ -37,12 +37,13 @@ const META_REQUIRED = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase
 const REGION_FIELDS = ['Root', 'Resolves', 'Box', 'Shot', 'Contains', 'Component', 'Notes'];
 const REGION_REQUIRED = ['Root', 'Resolves', 'Box', 'Shot', 'Contains'];
 
-const ELEMENT_FIELDS = ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
+const ELEMENT_FIELDS = ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM',
+  'Selector', 'Resolves', 'Box',
   'Kind', 'Type', 'Tier', 'Class', 'Class-ref', 'Status',
   'Probe', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
   'Registry', 'Locator', 'Locator-pw', 'Locator-agree', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
-  survey: ['Region', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
+  survey: ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
     'Kind', 'Type', 'Status'],
   probed: ['Probe', 'Observed'],
   classified: ['Registry', 'Locator'],
@@ -86,6 +87,24 @@ const DEVICE_SCALES = [1, 2, 3];
 const BOX_TOLERANCE = 0.08;
 const BOX_SLACK_PX = 8;
 
+/**
+ * A Page Object's locators are relative to the thing that owns them, so a selector only means
+ * anything together with the frame it resolves in. A cell selector matches once per row when
+ * asked inside a row, and once per row *in total* when asked of the document.
+ *
+ * `Scope:` names that frame: `page`, a region, or a container element. It is also the subtree
+ * that gets diffed when the element is probed, which is how a field that only appears after a
+ * dropdown selection gets noticed instead of reasoned about.
+ */
+const PAGE_SCOPE = 'page';
+
+/**
+ * The root expression a locator hangs off, in whatever language the project writes. Matching on
+ * the shape rather than on the literal `this.element` is what lets a Python project using
+ * `self.element` or `self._root` validate at all.
+ */
+const ROOT_RE = /^(this|self)\.([A-Za-z_]\w*)/;
+
 const DIALOGISH = /\b(dialog|modal|drawer|popup|popover|sheet|lightbox)\b/i;
 const LISTISH = /\b(dropdown|listbox|menu|autocomplete|suggestion|typeahead|combobox list)\b/i;
 
@@ -112,12 +131,15 @@ const RULE_DESC = {
   V025: 'element/region membership must agree both ways',
   V030: 'dialog revealed but no component planned',
   V031: 'list/dropdown revealed but nothing recorded as revealed',
-  V040: 'locator must be rooted at this.element or this.page',
-  V041: 'locator must not reach the page from inside a component',
+  V040: 'locator must hang off a component or page root',
+  V041: 'a scoped element must not reach the page',
   V042: 'locator disagreement must state a reason',
   V043: 'Resolves must be a match count taken from the live page',
-  V044: 'selector matched nothing on the page it was taken from',
-  V045: 'selector is ambiguous and nothing explains why',
+  V044: 'selector matched nothing within its scope',
+  V045: 'selector is ambiguous within its scope and nothing explains why',
+  V046: 'Scope must resolve to the page, a region, or a container',
+  V047: 'scope chain must reach the page without looping',
+  V048: 'an element can only be scoped inside a container in its own region',
   V070: 'region screenshot must exist on disk',
   V071: 'Box must be four numbers describing a rendered element',
   V072: 'screenshot does not match the box it claims to show',
@@ -522,13 +544,61 @@ export function validateContent(content, opts = {}) {
       }
     }
 
+    // ---- V046 / V047 / V048
+    const scope = fv(e, 'Scope');
+    let scopeOk = false;
+    if (scope !== undefined) {
+      if (scope === PAGE_SCOPE) {
+        scopeOk = true;
+      } else if (regionById.has(scope)) {
+        scopeOk = true;
+        if (fv(e, 'Region') !== undefined && fv(e, 'Region') !== scope) {
+          err('V048', fl(e, 'Scope'), e.id,
+            `scoped to ${scope} but filed under region ${fv(e, 'Region')}`);
+        }
+      } else if (elementById.has(scope)) {
+        const host = elementById.get(scope);
+        scopeOk = true;
+        if (fv(host, 'Kind') !== 'container') {
+          err('V048', fl(e, 'Scope'), e.id,
+            `${scope} is Kind: ${fv(host, 'Kind') || '(unset)'} — only a container can scope others`);
+        }
+        if (fv(host, 'Region') !== fv(e, 'Region')) {
+          err('V048', fl(e, 'Scope'), e.id,
+            `${scope} is in region ${fv(host, 'Region')}, this element is in ${fv(e, 'Region')}`);
+        }
+      } else {
+        err('V046', fl(e, 'Scope'), e.id,
+          `Scope "${scope}" is not "page", a region, or an element`);
+      }
+
+      // walk to the page; a cycle here would otherwise hang the grounding pass
+      if (scopeOk) {
+        const seen = new Set([e.id]);
+        let cur = scope;
+        while (cur !== PAGE_SCOPE && elementById.has(cur)) {
+          if (seen.has(cur)) {
+            err('V047', fl(e, 'Scope'), e.id,
+              `scope chain loops: ${[...seen].join(' -> ')} -> ${cur}`);
+            break;
+          }
+          seen.add(cur);
+          cur = fv(elementById.get(cur), 'Scope') ?? PAGE_SCOPE;
+        }
+      }
+    }
+
     // ---- V043 / V044 / V045
     const resolves = checkResolves(e, 'Selector');
     const elBox = checkBox(e);
+    // Resolves is counted *within* Scope, so >1 is a genuine collection (rows, options, cards)
+    // rather than the artifact of asking a document-wide question about a component-local
+    // selector. A collection is addressed by index or text at runtime, so it is expected.
     if (resolves !== null && resolves > 1
         && !fv(e, 'Class') && kind !== 'container') {
       err('V045', fl(e, 'Selector'), e.id,
-        `Selector matches ${resolves} nodes — scope it, or declare the group with Class:`);
+        `Selector matches ${resolves} nodes inside ${scope || 'its scope'} — `
+        + 'scope it deeper, or declare the group with Class:');
     }
 
     // ---- V019
@@ -680,10 +750,19 @@ export function validateContent(content, opts = {}) {
       const loc = fv(e, 'Locator');
       if (loc !== undefined) {
         const inner = loc.replace(/^`|`$/g, '').trim();
-        if (!/^this\.(element|page)\b/.test(inner)) {
-          err('V040', fl(e, 'Locator'), e.id, 'must start with this.element or this.page');
+        const root = inner.match(ROOT_RE);
+        if (!root) {
+          err('V040', fl(e, 'Locator'), e.id,
+            'must hang off a component or page root — this.element, self.element, self._root, '
+            + 'this.page, whatever this project calls it');
+        } else if (scope !== undefined && scope !== PAGE_SCOPE && /page/i.test(root[2])) {
+          // the defect this rule exists for: a component that searches the whole document.
+          // It breaks the moment the component is reused, and it silently couples it to a page.
+          err('V041', fl(e, 'Locator'), e.id,
+            `scoped to ${scope} but rooted at ${root[0]} — a component locates from its own root`);
         }
-        if (/(?<!this\.)\bpage\./.test(inner)) {
+        // a page handle smuggled into the body of an otherwise correctly rooted locator
+        if (root && /\b(?<!this\.)(?<!self\.)page\./.test(inner.slice(root[0].length))) {
           err('V041', fl(e, 'Locator'), e.id, 'reaches the page from inside a component');
         }
       }
@@ -849,7 +928,8 @@ const MUTATIONS = [
   ['V012', '**Observed:** listbox opened with 4 options; GET /api/employees?status=active fired; table went 84 -> 31 rows',
     '**Observed:** works'],
   ['V013', '**Type:** selection/single-select', '**Type:** selection/magic-widget'],
-  ['V014', '**Status:** static-confirmed', '**Status:** probed'],
+  ['V014', '**Locator-agree:** yes\n**Status:** static-confirmed',
+    '**Locator-agree:** yes\n**Status:** probed'],
   ['V015', './screens/E-02-after.png', './screens/nope.png'],
   ['V016', '**Reset:** re-selected "All statuses", confirmed 84 rows', '**Reset:** '],
   // the class representative stops being probed, so nothing in the class was ever observed
@@ -857,7 +937,8 @@ const MUTATIONS = [
     '**Locator-pw:** `getByRole(\'option\', { name: \'Active\' })`\n**Locator-agree:** yes\n**Status:** blocked-flaky'],
   ['V018', '**Class-ref:** E-06', '**Class-ref:** E-77'],
   ['V019', '**Type:** actions/link\n**Tier:** evidence', '**Type:** selection/single-select\n**Tier:** evidence'],
-  ['V020', '**Region:** R-02\n**Visual:** pill-shaped', '**Region:** R-99\n**Visual:** pill-shaped'],
+  ['V020', '**Region:** R-02\n**Scope:** R-02\n**Visual:** pill-shaped',
+    '**Region:** R-99\n**Scope:** R-02\n**Visual:** pill-shaped'],
   ['V021', '**Contains:** E-02, E-03', '**Contains:** E-02, E-03, E-77'],
   ['V022', '**Reveals:** C-02', '**Reveals:** C-99'],
   ['V023', '(C-01, R-04, opened by E-03)', '(R-04, opened by E-03)'],
@@ -876,13 +957,21 @@ const MUTATIONS = [
     "**Selector:** `[data-aid='full-name']`\n**Resolves:** 0"],
   ['V045', "**Selector:** `button[class*='_clear_']`\n**Resolves:** 1",
     "**Selector:** `button[class*='_clear_']`\n**Resolves:** 2"],
+  ['V046', '### E-05 — Full name field\n**Region:** R-04\n**Scope:** R-04',
+    '### E-05 — Full name field\n**Region:** R-04\n**Scope:** R-99'],
+  // the row scoped inside its own cell, which is scoped inside the row
+  ['V047', '### E-10 — Employee row\n**Region:** R-03\n**Scope:** E-04',
+    '### E-10 — Employee row\n**Region:** R-03\n**Scope:** E-11'],
+  // scoped inside a leaf control rather than a container
+  ['V048', '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** R-04',
+    '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** E-05'],
   ['V070', '**Shot:** ./screens/R-03.png', '**Shot:** ./screens/gone.png'],
   ['V071', '**Box:** 0,72,1440,64', '**Box:** 0,72,1440'],
   // the fixture's R-04 crop is generated at 600x420; claiming a taller box makes the image
   // stop matching what it is filed under, which is the R-05-shows-the-header failure
   ['V072', '**Box:** 420,180,600,420', '**Box:** 420,180,600,900'],
   ['V050', '| src/components/CreateEmployeeDialog.ts | CreateEmployeeDialog | component | planned |\n', ''],
-  ['V051', '**Contains:** E-04', '**Contains:** '],
+  ['V051', '**Contains:** E-04, E-10, E-11', '**Contains:** '],
   ['V052', '(R-02)', '(no region)'],
   // V060 only applies once the run claims to have emitted code.
   ['V060', '**Phase:** classified', '**Phase:** generated', 'generated'],

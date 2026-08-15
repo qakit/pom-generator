@@ -70,6 +70,7 @@ what lets the same validator gate every checkpoint.
 | Field | Required from phase | Value |
 |---|---|---|
 | `Region` | survey | The `R-nn` this element belongs to |
+| `Scope` | survey | What this element is located *inside*: `page`, an `R-nn`, or a container `E-nn`. See "Scope" |
 | `Visual` | survey | What it looks like, taken from the screenshot — shape, colour, iconography, position. Written *before* the DOM is consulted |
 | `Snapshot-ref` | survey | The accessibility snapshot ref (`e47`) |
 | `DOM` | survey | Backticked tag/selector plus role and relevant aria/data attributes |
@@ -94,6 +95,46 @@ what lets the same validator gate every checkpoint.
 | `Locator-agree` | classified | `yes`, or `no — <reason>` |
 | `Notes` | optional | Free text |
 
+### Scope
+
+A Page Object locates from the component that owns it, never from the document. So a selector
+means nothing on its own — it means something *inside a frame*, and `Scope:` names that frame.
+
+Scopes nest the way the UI nests: a cell is scoped to its row, the row to the table, the table to
+the panel that holds it, the panel to the page.
+
+**`Scope:` is ownership, not visual containment.** It answers "what locates me?", which is not
+always "what am I drawn inside?". An element that the page class owns — a title, a breadcrumb, a
+table that was extracted as its own component — has `Scope: page` even though it sits visually
+within a region. `Region:` records where it appears; `Scope:` records what it hangs off. They match
+for most elements and diverge exactly where a region was not turned into a component, which is
+information worth having explicit.
+
+The practical test: the scope is whichever class will hold this element's getter. If that is the
+page class, the scope is `page`.
+
+Overlays are the other case worth knowing: a dialog or a menu usually renders through a portal at
+the document root, so its region's `Root:` is page-rooted even though it visually sits on top of
+something else. Regions therefore carry no `Scope:` field — they are always resolved from the
+document.
+
+`Scope:` does three jobs, which is why it is one field and not three:
+
+1. **It is the frame `Resolves:` is counted in** (see below). A cell selector asked of the
+   document returns one match per row; asked of a row it returns one. The second number is the one
+   the generated wrapper will actually see.
+2. **It decides the locator root.** `Scope: page` → the page root (`this.page`, `self.page`).
+   Anything else → the component root (`this.element`, `self.element`, `self._root` — whatever this
+   project calls it). V041 rejects a scoped element that roots at the page, which is the defect
+   that breaks a component the moment it is reused elsewhere.
+3. **It is the subtree that gets diffed when the element is probed** (`analyze/p3-probe.md`). What
+   appeared or disappeared *inside the dialog* after a value was selected is the observation; what
+   changed elsewhere on the page is `Affects:`.
+
+V046 checks the scope resolves, V047 that the chain reaches `page` without looping, and V048 that
+the target is a container in the same region — you cannot scope an element inside a button, and a
+scope that crosses a region boundary means one of the two is filed wrong.
+
 ### Grounding
 
 Every other field in this schema is a description. `Selector`, `Resolves` and `Box` are the three
@@ -111,10 +152,17 @@ case where a selector gets copied out of `component-registry.md` and into genera
 ever having touched the page. A role- or label-based locator is exempt: it is a different
 expression of the same node, which is what `Locator-pw` is for.
 
-**`Resolves` is the match count the page gave back.** Not an estimate, not a expectation — the
-number the run got when it asked. `0` is V044: the selector describes nothing on the page it
-claims to come from. Greater than `1` is V045 unless the element is a `container` or carries a
-`Class:`, because an ambiguous selector generates a wrapper that silently picks the first match.
+**`Resolves` is the match count the page gave back, counted inside `Scope:`.** Not an estimate,
+not an expectation — the number the run got when it asked. `0` is V044: the selector describes
+nothing inside the frame it claims to live in. Greater than `1` is V045 unless the element is a
+`container` or carries a `Class:` — a row, a card, an option is *supposed* to repeat and is reached
+by index or text at runtime; anything else at 2 or more is a wrapper that silently takes the first
+match.
+
+Counting inside the scope is what keeps this rule from fighting selector proximity
+(`rules/element.md` E7). Counted against the document, a perfectly good cell selector looks
+ambiguous, and the only way to "fix" it is to make it page-absolute — which is the defect, not the
+remedy.
 
 **`Box` is what makes "read the screenshot" enforceable.** It is the element's measured geometry,
 and V072 checks the referenced PNG's pixel dimensions against it (allowing for device pixel ratio).
@@ -158,6 +206,7 @@ icon buttons in the same toolbar routinely do unrelated things.
 ```md
 ### E-04 — Status filter
 **Region:** R-02
+**Scope:** R-02
 **Visual:** pill-shaped control, grey border, chevron on the right, reads "All statuses"
 **Snapshot-ref:** e47
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
@@ -271,8 +320,11 @@ Each rule applies from the phase listed and at every later phase.
 | V025 | survey | Element↔region membership is consistent both ways: if `E-04` says `Region: R-02`, then `R-02`'s `Contains:` includes `E-04` |
 | **V030** | probed | **Any element whose `Observed:` mentions a dialog, modal, drawer, popup, popover, or sheet MUST have a `Reveals:`, and every `C-nn` it reveals MUST have a row in the output manifest** |
 | V031 | probed | Any element whose `Observed:` mentions a dropdown, listbox, menu, autocomplete or suggestion list must have a `Reveals:` |
-| V040 | classified | Every `Locator:` on an element belonging to a component starts with `this.element` |
-| V041 | classified | No `Locator:` inside a component contains `page.` |
+| V040 | classified | Every `Locator:` hangs off a recognisable root — `this.<name>` or `self.<name>`, so a Python wrapper validates the same as a TypeScript one |
+| V041 | classified | An element whose `Scope:` is not `page` must not root at the page, and must not reach a page handle inside its body |
+| V046 | survey | `Scope:` is `page`, an existing region, or an existing element |
+| V047 | survey | The scope chain reaches `page` without looping |
+| V048 | survey | A scope target is a `Kind: container` in the same region as the element it scopes |
 | V042 | classified | `Locator-agree: no` is followed by ` — ` and a reason |
 | V043 | survey | `Resolves:` is a whole number — the count the live page returned |
 | V044 | survey | `Resolves: 0` — the selector matched nothing on the page it describes |

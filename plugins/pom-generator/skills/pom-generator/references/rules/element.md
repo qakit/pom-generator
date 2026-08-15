@@ -97,20 +97,30 @@ the correct recovery, not a workaround, and it is always available.
 
 ## E7. Selector proximity
 
-Every getter uses the **shortest path from its own component's root**.
+Every getter uses the **shortest path from its own component's root**, and `Scope:` is where that
+root is written down. A selector is only meaningful together with the frame it resolves in: the
+same cell selector matches once per row against the document and exactly once inside a row, and
+the second is the number the generated wrapper will actually see.
 
 1. The element carries a `data-testid`/`data-aid` → use it directly.
 2. Its immediate parent carries one → locate the parent, then reach the child by role or position.
 3. Neither → go up one more level. **No further.**
 
-Inside a component class, every locator is relative to `this.element`. A component receives its own
-scoped root; it knows its internals, not where it sits in the page.
+Inside a component class, every locator is relative to that class's own root. A component receives
+a scoped root; it knows its internals, not where it sits in the page.
 
-**A `page.`-rooted selector inside a component class is a defect**, not a style preference
-(V040, V041). It breaks the moment the component is moved or reused, it searches the whole
-document, and it silently couples the component to one page.
+**A page-rooted selector inside a component class is a defect**, not a style preference (V040,
+V041). It breaks the moment the component is moved or reused, it searches the whole document, and
+it silently couples the component to one page. The check is against `Scope:`: anything scoped to
+something other than `page` must not root at the page.
 
-Page-level elements that genuinely belong to no component use `this.page`.
+The root expression itself is the project's, not this document's — `this.element`, `self.element`,
+`self._root`. V040 matches the shape, so a Python wrapper validates on the same terms as a
+TypeScript one; `conventions.md` decides which form is correct for this repo.
+
+Page-level elements that genuinely belong to no component carry `Scope: page` and use the page
+root. That is a real distinction, not a fallback: it records that the region they sit in was never
+extracted as a component.
 
 ## E8. Every selector is grounded against the page it describes
 
