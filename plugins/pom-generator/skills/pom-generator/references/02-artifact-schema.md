@@ -73,7 +73,7 @@ what lets the same validator gate every checkpoint.
 | `Region` | survey | The `R-nn` this element belongs to |
 | `Scope` | survey | What this element is located *inside*: `page`, an `R-nn`, or a container `E-nn`. See "Scope" |
 | `Visual` | survey | What it looks like, taken from the screenshot — shape, colour, iconography, position. Written *before* the DOM is consulted |
-| `Snapshot-ref` | survey | The accessibility snapshot ref (`e47`) |
+| `Snapshot-ref` | optional | The accessibility snapshot handle (`e47`) **for the current run only**. See below |
 | `DOM` | survey | Backticked tag/selector plus role and relevant aria/data attributes |
 | `Selector` | survey | Backticked raw selector — CSS or XPath, no language. This is the string that gets grounded |
 | `Resolves` | survey | How many nodes `Selector` matched on the live page. See "Grounding" |
@@ -96,6 +96,23 @@ what lets the same validator gate every checkpoint.
 | `Locator-pw` | classified | What `browser_generate_locator` returned |
 | `Locator-agree` | classified | `yes`, or `no — <reason>` |
 | `Notes` | optional | Free text |
+
+### Why `Snapshot-ref` is optional and identifies nothing
+
+`browser_snapshot` returns nodes tagged `[ref=e47]`, and those handles are how you tell the MCP
+server which element to act on. They are the server's own bookkeeping: they do not exist in the
+DOM, nothing can query for them, and they are reissued on every snapshot and every session. The
+same button is `e47` now and something else after a reload.
+
+They were once required on every element, from a time when the artifact was a scratchpad that
+lived inside one run. That is no longer what this file is. A handle written into a committed
+document is meaningless the moment the session ends, and a resume that tries to re-bind against
+one finds nothing — which reads, wrongly, as *the page has changed*.
+
+So: record it if it helps you within the run, and **never treat it as identity**. Identity is
+`Selector` + `Resolves` + `Box`, all three of which describe the page rather than the tooling and
+all three of which still mean something next week. Resume re-binds by selector
+(`analyze/pipeline.md`).
 
 ### Scope
 
@@ -211,6 +228,7 @@ icon buttons in the same toolbar routinely do unrelated things.
 **Scope:** R-02
 **Visual:** pill-shaped control, grey border, chevron on the right, reads "All statuses"
 **Snapshot-ref:** e47
+**Notes:** the ref is this run's MCP handle, kept as a convenience; identity is the Selector
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
 **Selector:** `[data-aid='status-filter']`
 **Resolves:** 1

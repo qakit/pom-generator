@@ -62,6 +62,13 @@ To resume, read `Meta.Phase` and continue from there. If `Phase: probed` but ele
 `pending`, just keep draining the queue; that is the normal resume path and needs no special
 handling.
 
+**Re-bind by `Selector:`, never by `Snapshot-ref:`.** Snapshot handles are minted per session by
+the MCP server; after a restart they point at nothing, or at something else. A resume that compares
+stored handles against a fresh snapshot concludes that every element has moved and that the page
+has changed — which is a report about the tooling, not about the app. Take a fresh snapshot, run
+the grounding pass over the stored selectors, and use the result: what still resolves is still
+there.
+
 Never restart from P1 on a run that has probe results. Re-probing is expensive and discards
 observations that are still valid.
 
@@ -71,8 +78,9 @@ If `analysis.md` already exists for this slug, this is a re-analysis. Do not ove
 
 1. Keep the existing file as the comparison base.
 2. Run P1 fresh against the live page.
-3. Compare by element **name and DOM signature**, not by ID — IDs are ours, the page's identity is
-   what changed or did not.
+3. Compare by **selector and DOM signature**, not by `E-nn` ID and never by snapshot handle — the
+   IDs are ours, the handles belong to the session, and the page's identity is what changed or did
+   not.
 4. Write `## Delta` (`02-artifact-schema.md`) recording Added / Removed / Changed / Unchanged.
 5. **Only `pending` elements get probed.** Unchanged elements keep their existing observations —
    re-probing a control that did not change wastes a run and gains nothing.

@@ -43,7 +43,10 @@ const ELEMENT_FIELDS = ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM',
   'Probe', 'Value-source', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
   'Registry', 'Locator', 'Locator-pw', 'Locator-agree', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
-  survey: ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM', 'Selector', 'Resolves', 'Box',
+  // `Snapshot-ref` is deliberately absent: it is a per-session handle the MCP server mints, so
+  // it cannot identify anything in a file whose purpose is surviving the session. Identity is
+  // Selector + Resolves + Box. The field stays legal as a within-run convenience.
+  survey: ['Region', 'Scope', 'Visual', 'DOM', 'Selector', 'Resolves', 'Box',
     'Kind', 'Type', 'Status'],
   probed: ['Probe', 'Observed'],
   classified: ['Registry', 'Locator'],

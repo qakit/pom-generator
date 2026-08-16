@@ -71,7 +71,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-01
 **Scope:** page
 **Visual:** large bold heading reading "Employees", top left of the content area
-**Snapshot-ref:** e11
 **DOM:** `h1[class*='_title_']` role=heading level=1
 **Selector:** `h1[class*='_title_']`
 **Resolves:** 1
@@ -89,6 +88,7 @@ validator at this directory directly, which would report V015 failures.
 **Scope:** R-02
 **Visual:** pill-shaped control with a grey border and a chevron on the right, reads "All statuses"
 **Snapshot-ref:** e47
+**Notes:** the ref is this run's MCP handle, kept only as a convenience; identity is the Selector
 **DOM:** `div[class*='_select_']` role=combobox aria-haspopup=listbox
 **Selector:** `[data-aid='status-filter']`
 **Resolves:** 1
@@ -112,7 +112,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-02
 **Scope:** R-02
 **Visual:** solid blue button, white text, right-aligned in the filter bar
-**Snapshot-ref:** e52
 **DOM:** `button[data-aid='create']` role=button
 **Selector:** `[data-aid='create']`
 **Resolves:** 1
@@ -136,7 +135,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-03
 **Scope:** page
 **Visual:** full-width table, 6 columns, zebra striping, 84 rows before filtering
-**Snapshot-ref:** e60
 **DOM:** `div[data-aid='employees-table']` role=table
 **Selector:** `[data-aid='employees-table']`
 **Resolves:** 1
@@ -153,7 +151,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-04
 **Scope:** R-04
 **Visual:** single-line bordered text box under a "Full name" label, first field in the dialog
-**Snapshot-ref:** e71
 **DOM:** `input[data-aid='full-name']` type=text
 **Selector:** `[data-aid='full-name']`
 **Resolves:** 1
@@ -177,7 +174,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-05
 **Scope:** R-05
 **Visual:** second row of the opened option list, hover highlight, no checkmark
-**Snapshot-ref:** e49
 **DOM:** `li[role='option']` aria-selected=false
 **Selector:** `li[role='option']`
 **Resolves:** 4
@@ -201,7 +197,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-04
 **Scope:** R-04
 **Visual:** small grey X icon inside the right edge of the name field, only present once text is entered
-**Snapshot-ref:** e73
 **DOM:** `button[class*='_clear_']` role=button aria-label="Clear"
 **Selector:** `button[class*='_clear_']`
 **Resolves:** 1
@@ -223,7 +218,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-05
 **Scope:** R-05
 **Visual:** third row of the same option list, identical shape and padding to the Active row
-**Snapshot-ref:** e50
 **DOM:** `li[role='option']` aria-selected=false
 **Selector:** `li[role='option']`
 **Resolves:** 4
@@ -244,7 +238,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-02
 **Scope:** R-02
 **Visual:** was an outline button reading "Export" to the left of Create; no longer rendered
-**Snapshot-ref:** e58
 **DOM:** `button[data-testid='export']` role=button
 **Selector:** `[data-testid='export']`
 **Resolves:** 0
@@ -258,7 +251,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-02
 **Scope:** R-02
 **Visual:** text box with a magnifier icon on the left, placeholder "Search employees"
-**Snapshot-ref:** e44
 **DOM:** `input[data-testid='employee-search']` type=search
 **Selector:** `[data-testid='employee-search']`
 **Resolves:** 1
@@ -282,7 +274,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-03
 **Scope:** E-04
 **Visual:** one striped row of the table, avatar then name then department then a chevron
-**Snapshot-ref:** e63
 **DOM:** `tbody tr` role=row
 **Selector:** `tbody tr`
 **Resolves:** 84
@@ -300,7 +291,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-03
 **Scope:** E-10
 **Visual:** bold name with a smaller grey department line beneath it, left of each row
-**Snapshot-ref:** e64
 **DOM:** `div[class*='_nameCell_']`
 **Selector:** `[class*='_nameCell_']`
 **Resolves:** 1
@@ -318,7 +308,6 @@ validator at this directory directly, which would report V015 failures.
 **Region:** R-01
 **Scope:** page
 **Visual:** small text link with a left chevron, above the page title
-**Snapshot-ref:** e09
 **DOM:** `a[href='/dashboard']` role=link
 **Selector:** `a[href='/dashboard']`
 **Resolves:** 1

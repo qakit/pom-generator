@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders — pom-generator fixture</title>
+<style>
+  :root {
+    --ground:#f4f6f8; --surface:#fff; --ink:#16202a; --ink-2:#5a6a76; --line:#dde4ea;
+    --accent:#2f6f9f; --danger:#a33; --ok:#2a6f49;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+
+  /* ---- layout ---- */
+  .app-header { display:flex; align-items:center; gap:16px; height:56px; padding:0 20px;
+                background:var(--surface); border-bottom:1px solid var(--line); }
+  .brand { font-weight:700; letter-spacing:-.02em; }
+  .app-body { display:flex; align-items:flex-start; }
+  .side-nav { width:200px; flex:none; padding:16px 12px; }
+  .side-nav a { display:block; padding:8px 12px; border-radius:6px; color:var(--ink-2);
+                text-decoration:none; }
+  .side-nav a[aria-current="page"] { background:var(--surface); color:var(--ink); font-weight:600; }
+
+  /* TRAP 8: this wrapper's bounding box spans the whole document, not the viewport.
+     An element screenshot targeted here returns a tall, mostly-empty image. */
+  .content-scroll { flex:1; min-width:0; padding:20px; }
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+           padding:16px; margin-bottom:16px; }
+
+  .toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .spacer { flex:1; }
+  input[type=text], input[type=date], select, textarea {
+    font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:6px;
+    background:var(--surface); color:var(--ink); }
+  button { font:inherit; padding:8px 14px; border-radius:6px; border:1px solid var(--line);
+           background:var(--surface); color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .icon-btn { width:34px; height:34px; padding:0; display:inline-grid; place-items:center; }
+
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.06em;
+       color:var(--ink-2); padding:8px; border-bottom:1px solid var(--line); }
+  td { padding:10px 8px; border-bottom:1px solid var(--line); }
+  .cust { font-weight:600; }
+  .cust-meta { font-size:12.5px; color:var(--ink-2); }
+  .status { font-size:12.5px; padding:2px 8px; border-radius:999px; background:var(--ground); }
+
+  dialog { border:1px solid var(--line); border-radius:12px; padding:0; width:min(520px,92vw); }
+  dialog::backdrop { background:rgba(10,20,30,.45); }
+  .dlg-head { padding:14px 18px; border-bottom:1px solid var(--line); font-weight:650; }
+  .dlg-body { padding:18px; display:flex; flex-direction:column; gap:14px; }
+  .dlg-foot { padding:14px 18px; border-top:1px solid var(--line); display:flex; gap:10px;
+              justify-content:flex-end; }
+  label { display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--ink-2); }
+  .hidden { display:none !important; }
+  .note-link { color:var(--accent); background:none; border:none; padding:0; cursor:pointer;
+               text-decoration:underline; font:inherit; }
+  .empty { padding:24px; text-align:center; color:var(--ink-2); }
+  .sentinel { height:1px; }
+</style>
+</head>
+<body>
+
+<header class="app-header" data-testid="layout-header">
+  <span class="brand">Northwind Ops</span>
+  <a href="./fixture-page.html" data-testid="nav-home">Home</a>
+  <div class="spacer"></div>
+  <!-- TRAP 5+6: two icon-only buttons, visually similar, doing unrelated things.
+       Not an equivalence class. -->
+  <button class="icon-btn" data-testid="open-settings" aria-label="Settings">&#9881;</button>
+  <button class="icon-btn" data-testid="open-filters" aria-label="Filters">&#9660;</button>
+</header>
+
+<div class="app-body">
+  <nav class="side-nav" data-testid="layout-sidenav">
+    <a href="./fixture-page.html" aria-current="page" data-testid="nav-orders">Orders</a>
+    <a href="./fixture-page.html?v=customers" data-testid="nav-customers">Customers</a>
+    <a href="./fixture-page.html?v=reports" data-testid="nav-reports">Reports</a>
+  </nav>
+
+  <main class="content-scroll" data-testid="layout-main">
+
+    <section class="panel toolbar" data-testid="filter-bar">
+      <!-- TRAP 9: only matches values that are actually in the table -->
+      <input type="text" data-testid="order-search" placeholder="Search orders" aria-label="Customer name">
+      <button data-testid="search-submit">Search</button>
+      <div class="spacer"></div>
+      <button class="primary" data-testid="new-order">New order</button>
+    </section>
+
+    <section class="panel" data-testid="orders-panel">
+      <table data-testid="orders-table">
+        <thead>
+          <tr><th>Customer</th><th>Placed</th><th>Total</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody data-testid="orders-body"></tbody>
+      </table>
+      <div class="sentinel" data-testid="scroll-sentinel"></div>
+      <!-- TRAP 4: no pagination anywhere. Rows append on scroll. -->
+    </section>
+
+  </main>
+</div>
+
+<!-- TRAP 11: the gear opens THIS, not the create dialog. Different content entirely. -->
+<dialog data-testid="settings-dialog">
+  <div class="dlg-head">Table settings</div>
+  <div class="dlg-body">
+    <label>Rows per fetch
+      <select data-testid="settings-page-size">
+        <option>25</option><option>50</option><option>100</option>
+      </select>
+    </label>
+    <label style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" data-testid="settings-compact"> Compact rows
+    </label>
+  </div>
+  <div class="dlg-foot">
+    <button data-testid="settings-close">Close</button>
+  </div>
+</dialog>
+
+<dialog data-testid="order-dialog">
+  <div class="dlg-head">New order</div>
+  <div class="dlg-body">
+    <label>Customer
+      <input type="text" data-testid="order-customer" placeholder="Customer name">
+    </label>
+
+    <!-- TRAP 2: choosing a value here reveals a field that does not exist until then.
+         Opening this select and pressing Escape reveals nothing. -->
+    <label>Delivery type
+      <select data-testid="order-delivery">
+        <option value="">Select a type</option>
+        <option value="standard">Standard</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="window">Delivery window</option>
+      </select>
+    </label>
+
+    <label class="hidden" data-testid="order-date-wrap">Delivery date
+      <input type="date" data-testid="order-date">
+    </label>
+    <label class="hidden" data-testid="order-range-wrap">Window
+      <span style="display:flex; gap:8px;">
+        <input type="date" data-testid="order-range-from" aria-label="From">
+        <input type="date" data-testid="order-range-to" aria-label="To">
+      </span>
+    </label>
+
+    <!-- TRAP 3: a link that becomes a textarea. Not a drop zone, not an upload. -->
+    <div>
+      <button class="note-link" data-testid="order-add-note">Add a note</button>
+      <label class="hidden" data-testid="order-note-wrap">Note
+        <textarea rows="3" data-testid="order-note" placeholder="Optional note"></textarea>
+      </label>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button data-testid="order-cancel">Cancel</button>
+    <!-- TRAP 12: disabled until customer + delivery type are both set -->
+    <button class="primary" data-testid="order-submit" disabled>Create</button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  const CUSTOMERS = ['Rivera Logistics','Okonkwo Foods','Halvorsen AS','Beaumont Retail',
+                     'Tanaka Kikai','Silva Importações','Novak Stavby','Petrov Group'];
+  const STATUSES  = ['Placed','Packing','Shipped','Delivered','Cancelled'];
+  const $  = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const tid = (t, r = document) => r.querySelector(`[data-testid="${t}"]`);
+
+  // TRAP 7: ids are re-minted on every load, exactly like a component framework does.
+  // Anything selected by these will pass a single-snapshot check and break on reload.
+  let seq = 0;
+  const volatileId = () => `:r${(Math.random().toString(36).slice(2, 5))}${seq++}:`;
+
+  let rows = [];
+  for (let i = 0; i < 60; i++) {
+    rows.push({
+      id: 1000 + i,
+      customer: CUSTOMERS[i % CUSTOMERS.length],
+      ref: 'ORD-' + (1000 + i),
+      placed: new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10),
+      total: ((i * 37) % 900 + 100).toFixed(2),
+      status: STATUSES[i % STATUSES.length],
+    });
+  }
+
+  let shown = 0, filter = '';
+  const body = tid('orders-body');
+
+  function visible() {
+    if (!filter) return rows;
+    const q = filter.toLowerCase();
+    return rows.filter(r => r.customer.toLowerCase().includes(q) || r.ref.toLowerCase().includes(q));
+  }
+
+  function renderMore(n = 20) {
+    const list = visible();
+    if (!list.length) {
+      body.innerHTML = `<tr><td colspan="5" class="empty" data-testid="orders-empty">
+        No orders match that search.</td></tr>`;
+      return;
+    }
+    if (shown === 0) body.innerHTML = '';
+    const slice = list.slice(shown, shown + n);
+    for (const r of slice) {
+      const tr = document.createElement('tr');
+      tr.dataset.orderId = r.id;
+      tr.id = volatileId();
+      // TRAP 10: `.cust` appears once per row — 60 times in the document, once inside a row.
+      tr.innerHTML = `
+        <td><div class="cust">${r.customer}</div><div class="cust-meta">${r.ref}</div></td>
+        <td>${r.placed}</td>
+        <td>${r.total}</td>
+        <td><span class="status">${r.status}</span></td>
+        <td><button class="icon-btn" data-testid="row-open" aria-label="Open order">&#8594;</button></td>`;
+      body.appendChild(tr);
+    }
+    shown += slice.length;
+  }
+
+  // TRAP 1: the row arrow NAVIGATES to a detail view. It is not a menu and opens nothing.
+  body.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-testid="row-open"]');
+    if (!btn) return;
+    const id = btn.closest('tr').dataset.orderId;
+    location.hash = `#/orders/${id}`;
+    document.title = `Order ${id} — Orders — pom-generator fixture`;
+  });
+
+  // TRAP 4: infinite scroll, no page controls
+  new IntersectionObserver((entries) => {
+    if (entries.some(en => en.isIntersecting) && shown < visible().length) renderMore();
+  }, { rootMargin: '200px' }).observe(tid('scroll-sentinel'));
+
+  function runSearch() {
+    filter = tid('order-search').value.trim();
+    shown = 0;
+    renderMore();
+  }
+  tid('search-submit').addEventListener('click', runSearch);
+  tid('order-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
+
+  // gear and funnel: same shape, unrelated behaviour
+  tid('open-settings').addEventListener('click', () => tid('settings-dialog').showModal());
+  tid('settings-close').addEventListener('click', () => tid('settings-dialog').close());
+  tid('open-filters').addEventListener('click', () => {
+    tid('filter-bar').classList.toggle('hidden');
+  });
+
+  const dlg = tid('order-dialog');
+  tid('new-order').addEventListener('click', () => dlg.showModal());
+  tid('order-cancel').addEventListener('click', () => dlg.close());
+
+  // TRAP 2: the conditional field only exists once a value is committed
+  tid('order-delivery').addEventListener('change', (e) => {
+    const v = e.target.value;
+    tid('order-date-wrap').classList.toggle('hidden', v !== 'scheduled');
+    tid('order-range-wrap').classList.toggle('hidden', v !== 'window');
+    revalidate();
+  });
+
+  // TRAP 3: link swaps itself for a textarea
+  tid('order-add-note').addEventListener('click', () => {
+    tid('order-add-note').classList.add('hidden');
+    tid('order-note-wrap').classList.remove('hidden');
+    tid('order-note').focus();
+  });
+
+  function revalidate() {
+    tid('order-submit').disabled =
+      !tid('order-customer').value.trim() || !tid('order-delivery').value;
+  }
+  tid('order-customer').addEventListener('input', revalidate);
+
+  renderMore();
+})();
+</script>
+</body>
+</html>

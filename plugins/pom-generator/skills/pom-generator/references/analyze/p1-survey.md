@@ -106,8 +106,11 @@ quietly becoming the basis for a dozen element descriptions.
 
 For each region, list every element: every input, button, icon-button, dropdown, checkbox, tab,
 link, and every container that groups them. One `### E-nn` block per element, with `Region`,
-`Scope`, `Visual`, `Snapshot-ref`, `DOM`, `Selector`, `Kind`, `Type`, `Status: pending`.
-`Resolves` and `Box` are filled in by the grounding pass two steps down.
+`Scope`, `Visual`, `DOM`, `Selector`, `Kind`, `Type`, `Status: pending`. `Resolves` and `Box` are
+filled in by the grounding pass two steps down.
+
+A `Snapshot-ref` is optional and is a convenience for your own use during this run, not identity —
+the handles are reissued every session (`02-artifact-schema.md`).
 
 Write `Visual:` from the region screenshot **before** reading the DOM for that element
 (`rules/element.md` E1). Shape, colour, iconography, position — what a person sees. Then `DOM:`.
