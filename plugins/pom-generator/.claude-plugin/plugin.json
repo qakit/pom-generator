@@ -1,7 +1,7 @@
 {
   "name": "pom-generator",
   "description": "Analyzes real application pages into a strict, validated artifact, then generates Playwright Page Object wrappers from it that match your existing framework's conventions. Language-neutral; refined from your manual corrections over time.",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "author": {
     "name": "Andrey Egorov",
     "url": "https://github.com/AndrewEgorov"

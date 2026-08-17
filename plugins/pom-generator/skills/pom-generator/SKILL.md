@@ -36,9 +36,10 @@ Prerequisites run in order: **explore → analyze → generate**. Analysis requi
                   .pom-generator/component-registry.md     what is already wrapped
 
 /pom-analyze   →  .pom-generator/analysis/<slug>/analysis.md
-                  a strict, validated record of every element on a real page:
-                  what it is, what it actually does when you interact with it,
-                  and which class should wrap it.  No code is written.
+                  a strict, validated record of every element on a real page.
+                  Recognition-first: most elements are matched against the
+                  registry's fingerprints and never probed; interaction is
+                  spent only on genuinely unknown controls.  No code is written.
 
 /pom-generate  →  src/pages/…, src/components/…
                   written from the artifact alone, then verified against the live page.
@@ -46,7 +47,7 @@ Prerequisites run in order: **explore → analyze → generate**. Analysis requi
 
 The split between analyze and generate is deliberate. Probing a page and writing code are
 different jobs, and interleaving them is what causes elements to be silently dropped. The artifact
-is the contract between them, and a validator enforces it:
+is the contract between them, and a validator enforces it (schema v2):
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" .pom-generator/analysis/<slug>

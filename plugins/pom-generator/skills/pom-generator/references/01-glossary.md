@@ -47,17 +47,17 @@ not a thing that gets wrapped; it is a way of analyzing several pages that share
 components.
 → Invariants: `rules/flow.md`
 
-**Region** — a *survey-time* concept only, not a code concept. A visually distinct area of the
-page identified from a screenshot before the DOM is consulted. Regions are the raw material for
-deciding component boundaries in P2. A region may become a component, may become several, or may
-dissolve into the page. Regions exist so that visual grouping is captured before DOM structure
-biases the decision.
+**Region** — an *inventory-time* concept only, not a code concept. A visually distinct area of
+the page identified from the baseline screenshot. Regions are the raw material for deciding
+component boundaries. A region may become a component, may become several, or may dissolve into
+the page. Regions exist so that visual grouping is captured before DOM structure biases the
+decision.
 
 ---
 
 ## ID scheme
 
-IDs are assigned during survey and never renumbered — they are referenced across sections and
+IDs are assigned during inventory and never renumbered — they are referenced across sections and
 across runs (delta mode compares by ID and by name).
 
 | Prefix | Means | Example |
@@ -88,9 +88,10 @@ finished. Only these values are legal:
 
 | Status | Means | Terminal? |
 |---|---|---|
-| `pending` | In the inventory, not yet probed | **No** — blocks generation |
-| `probed` | Actually interacted with; `Probe:` and `Observed:` are filled in | Yes |
-| `probed-by-class` | Inherits the outcome of a member of the same `Class:` that was probed in full. Requires `Tier: class` and `Class-ref:` (V017, V018) | Yes |
+| `pending` | On the probe list, not yet probed | **No** — blocks generation |
+| `recognized` | Matched a registry fingerprint; `Registry:` names the wrapper class (V080). The registry already documents its behaviour, so no probe | Yes |
+| `probed` | Actually interacted with — or answered by the DOM itself (`Probe: Read …`, V019); `Probe:` and `Observed:` are filled in | Yes |
+| `probed-by-class` | Inherits the outcome of a member of the same `Class:` that was probed. Requires `Class:` and `Class-ref:` (V017, V018) | Yes |
 | `static-confirmed` | Confirmed non-interactive (a label, a static badge, an icon with no handler). Requires `Kind: static` | Yes |
 | `blocked-<reason>` | Could not be probed. Reason is required, e.g. `blocked-safety`, `blocked-unreachable`, `blocked-flaky` | Yes, but reported |
 | `removed` | Delta mode only: existed in a previous analysis, gone now | Yes |
@@ -105,9 +106,9 @@ the queue is on disk and either it is empty or it is not.
 
 `**Kind:**` decides which validator rules apply to an element.
 
-- **`actionable`** — can be clicked, typed into, selected, toggled, dragged. Requires a real
-  action verb in `Probe:`, a non-empty `Observed:`, and before/after screenshots. The word
-  `Observed` is **not** a legal `Probe:` value for these.
+- **`actionable`** — can be clicked, typed into, selected, toggled, dragged. Unless recognized
+  against the registry, requires a real action verb in `Probe:` and a non-empty `Observed:`. The
+  word `Observed` is **not** a legal `Probe:` value for these.
 - **`static`** — genuinely non-interactive. Text, a read-only value, a decorative icon. Requires
   `Status: static-confirmed`. Classifying something as `static` to avoid probing it is the
   failure mode this field exists to make visible: if it has a role, a handler, a cursor change, or
@@ -123,9 +124,13 @@ the queue is on disk and either it is empty or it is not.
 `**Probe:**` for an `actionable` element must begin with one of these, capitalized:
 
 `Typed` · `Clicked` · `Double-clicked` · `Selected` · `Toggled` · `Checked` · `Unchecked` ·
-`Hovered` · `Pressed` · `Uploaded` · `Dragged` · `Scrolled` · `Expanded` · `Collapsed`
+`Hovered` · `Pressed` · `Uploaded` · `Dragged` · `Scrolled` · `Expanded` · `Collapsed` · `Read`
 
-Followed by what was actually done: `Typed "zzprobe"`, `Selected "Active"`, `Pressed Escape`.
+Followed by what was actually done: `Typed "Rivera"`, `Selected "Active"`, `Read href`.
+
+`Read` is the evidence verb: the conclusion came from an attribute the DOM already carries (an
+`href`, a `disabled` flag). It is refused for the families whose behaviour only exists at
+interaction time (V019).
 
 `Hovered` alone is sufficient only for elements whose entire behavior is a hover reveal (a
 tooltip). For anything clickable, hovering is not the required action.

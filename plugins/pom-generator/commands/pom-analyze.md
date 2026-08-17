@@ -37,13 +37,13 @@ Work through the phases, reading each phase document before entering it:
 
 | Phase | Document |
 |---|---|
-| P1 Survey | `references/analyze/p1-survey.md` |
-| P2 Decompose | `references/analyze/p2-decompose.md` |
-| P3 Probe | `references/analyze/p3-probe.md` |
-| P4 Classify | `references/analyze/p4-classify.md` |
+| P1 Inventory | `references/analyze/inventory.md` |
+| P2 Probe | `references/analyze/probe.md` |
+| P3 Finalize | `references/analyze/finalize.md` |
 
-**Stop at Gate 1 (after survey) and Gate 2 (after decomposition).** Present the result and wait for
-the user's reply — do not run the next phase in the same turn. P3 and P4 run unattended.
+**Stop at the checkpoint (after inventory).** Present the region map, the recognition table, and
+the probe list, and wait for the user's reply — do not start probing in the same turn. Probe and
+finalize then run unattended.
 
 Validate at every phase boundary and advance `Meta.Phase` only when it passes:
 
@@ -58,6 +58,6 @@ If `$ARGUMENTS` contains `--phase=<phase>`, resume from that phase instead of st
 
 ## Finish
 
-Report counts, registry reuse vs. new, anything blocked and why, any locator disagreements, and the
-planned output files. Then stop — say that `/pom-generate <slug>` is the next step and do not run
+Report counts (recognized / probed / static / blocked), registry reuse vs. new, anything blocked
+and why, and the planned output files. Then stop — say that `/pom-generate <slug>` is the next step and do not run
 it. No Page Object code is written by this command.

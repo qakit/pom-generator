@@ -10,9 +10,9 @@ pages that are hard to reach directly, and of noticing what they share.
 
 ## F1. Per-page work is identical
 
-Every page and dialog in a flow gets the full P1–P4 treatment with its own artifact and slug —
-the same survey, the same probe queue, the same validator gates. Nothing about being step 3 of a
-flow reduces the analysis.
+Every page and dialog in a flow gets the full inventory → probe → finalize treatment with its own
+artifact and slug — the same recognition pass, the same probe queue, the same validator. Nothing
+about being step 3 of a flow reduces the analysis.
 
 If a flow ever produces a thinner artifact than analyzing that page directly would have, something
 has been skipped.
@@ -42,7 +42,7 @@ route file was right — an unnoticed wrong turn at step 2 produces four confide
 A navigation bar on all four pages of a flow is **one** component, wrapped once and referenced by
 each page.
 
-After each page's decomposition, compare its component tree against every page already analyzed in
+After each page's inventory, compare its component tree against every page already analyzed in
 this flow. Matching root selector plus matching internal structure means the same component:
 record `[REUSE <Class>]` and point at the existing file rather than generating a second one.
 

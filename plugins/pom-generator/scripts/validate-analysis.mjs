@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * pom-generator — analysis artifact validator
+ * pom-generator — analysis artifact validator (schema v2)
  *
  * Validates `.pom-generator/analysis/<slug>/analysis.md` against the grammar in
  * references/02-artifact-schema.md.
@@ -13,9 +13,8 @@
  * Exit: 0 clean · 1 errors · 2 warnings only.
  */
 
-import { readFileSync, existsSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { dirname, join, resolve, isAbsolute } from 'node:path';
-import { tmpdir } from 'node:os';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -24,32 +23,27 @@ const FIXTURES = resolve(HERE, 'fixtures');
 
 // ---------------------------------------------------------------- constants
 
-const PHASES = ['survey', 'decomposed', 'probed', 'classified', 'generated'];
+const PHASES = ['inventory', 'probed', 'classified', 'generated'];
 const phaseAtLeast = (current, required) =>
   PHASES.indexOf(current) >= PHASES.indexOf(required);
 
 const SECTIONS = ['Meta', 'Regions', 'Elements', 'Component tree', 'Output manifest'];
 
 const META_FIELDS = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase',
-  'Conventions', 'Selector-strategy', 'Tools-degraded', 'Budget', 'Spent', 'Notes'];
+  'Conventions', 'Selector-strategy', 'Tools-degraded', 'Notes'];
 const META_REQUIRED = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase'];
 
-const REGION_FIELDS = ['Root', 'Resolves', 'Box', 'Shot', 'Contains', 'Component', 'Notes'];
-const REGION_REQUIRED = ['Root', 'Resolves', 'Box', 'Shot', 'Contains'];
+const REGION_FIELDS = ['Root', 'Resolves', 'Contains', 'Box', 'Shot', 'Component',
+  'Open-path', 'Notes'];
+const REGION_REQUIRED = ['Root', 'Resolves', 'Contains'];
 
-const ELEMENT_FIELDS = ['Region', 'Scope', 'Visual', 'Snapshot-ref', 'DOM',
-  'Selector', 'Resolves', 'Box',
-  'Kind', 'Type', 'Tier', 'Class', 'Class-ref', 'Status',
-  'Probe', 'Value-source', 'Observed', 'Shots', 'Reset', 'Reveals', 'Affects',
-  'Registry', 'Locator', 'Locator-pw', 'Locator-agree', 'Notes'];
+const ELEMENT_FIELDS = ['Region', 'Scope', 'Text', 'DOM', 'Selector', 'Resolves', 'Box',
+  'Kind', 'Type', 'Registry', 'Class', 'Class-ref', 'Status',
+  'Probe', 'Value-source', 'Observed', 'Open-path', 'Reveals', 'Affects',
+  'Locator', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
-  // `Snapshot-ref` is deliberately absent: it is a per-session handle the MCP server mints, so
-  // it cannot identify anything in a file whose purpose is surviving the session. Identity is
-  // Selector + Resolves + Box. The field stays legal as a within-run convenience.
-  survey: ['Region', 'Scope', 'Visual', 'DOM', 'Selector', 'Resolves', 'Box',
-    'Kind', 'Type', 'Status'],
-  probed: ['Probe', 'Observed'],
-  classified: ['Registry', 'Locator'],
+  inventory: ['Region', 'Scope', 'Selector', 'Resolves', 'Kind', 'Type', 'Status'],
+  classified: ['Locator'],
 };
 
 const DELTA_FIELDS = ['Against', 'Added', 'Removed', 'Changed', 'Unchanged'];
@@ -59,45 +53,23 @@ const ACTION_VERBS = ['Typed', 'Clicked', 'Double-clicked', 'Selected', 'Toggled
   'Expanded', 'Collapsed', 'Read'];
 
 const KINDS = ['actionable', 'static', 'container'];
-const SIMPLE_STATUSES = ['pending', 'probed', 'probed-by-class', 'static-confirmed', 'removed'];
-
-/**
- * How much evidence an element's conclusion is allowed to rest on. Assigned at survey so the
- * cost of P3 is known — and approvable — before P3 starts, not discovered two hours in.
- *
- *   full      the whole probe procedure: before/after screenshots, action, reset
- *   class     one member of an equivalence class is probed `full`; the rest inherit its
- *             outcome and say so, which is declared extrapolation rather than silent
- *   evidence  no interaction — the conclusion comes from attributes the DOM already states
- *             (an `href`, `disabled`, `type`). Cheap, and strictly limited by V019
- */
-const TIERS = ['full', 'class', 'evidence'];
+const SIMPLE_STATUSES = ['pending', 'recognized', 'probed', 'probed-by-class',
+  'static-confirmed', 'removed'];
 
 /**
  * Families whose behaviour is never readable from attributes: what a select does depends on
  * what happens when you select, and a conditional field that appears on the third option is
- * invisible to any amount of DOM reading. `Tier: evidence` on these is the shortcut that
- * produces a confident, wrong artifact.
+ * invisible to any amount of DOM reading. `Probe: Read` on these is the shortcut that
+ * produces a confident, wrong artifact (V019).
  */
 const MUST_INTERACT = ['inputs', 'selection', 'temporal', 'collections'];
-
-/**
- * Element screenshots come back at the browser's device pixel ratio, so a box measured in CSS
- * pixels and a file measured in device pixels differ by a whole-number scale. Accept any of
- * these, with slack for the margin some capture paths add around the element.
- */
-const DEVICE_SCALES = [1, 2, 3];
-const BOX_TOLERANCE = 0.08;
-const BOX_SLACK_PX = 8;
 
 /**
  * A Page Object's locators are relative to the thing that owns them, so a selector only means
  * anything together with the frame it resolves in. A cell selector matches once per row when
  * asked inside a row, and once per row *in total* when asked of the document.
  *
- * `Scope:` names that frame: `page`, a region, or a container element. It is also the subtree
- * that gets diffed when the element is probed, which is how a field that only appears after a
- * dropdown selection gets noticed instead of reasoned about.
+ * `Scope:` names that frame: `page`, a region, or a container element.
  */
 const PAGE_SCOPE = 'page';
 
@@ -126,7 +98,7 @@ const MATCHING_TYPES = ['inputs/search', 'inputs/autocomplete'];
  * types listed here, because the cheap action and the required one are both legal verbs: you can
  * click a dropdown open, look at it, press Escape, and record `Probe: Clicked` — a sentence that
  * passes every check while leaving the selection behaviour, and anything a selection reveals,
- * entirely untested. The catalog has always said so in prose. This is the same rule with teeth.
+ * entirely untested.
  *
  * Absent from this table means the catalog accepts any real action for that type.
  */
@@ -184,15 +156,13 @@ const RULE_DESC = {
   V003: 'field lines parse and field names are known',
   V004: 'block headers well-formed and IDs unique',
   V010: 'no element left pending',
-  V011: 'actionable element must have a real probe action',
-  V012: 'actionable element must have a substantive observation',
+  V011: 'probed element must have a real probe action',
+  V012: 'probed element must have a substantive observation',
   V013: 'Type must exist in the catalog',
   V014: 'Kind and Status must agree',
-  V015: 'actionable element needs before/after screenshots that exist',
-  V016: 'actionable element must record how state was reset',
-  V017: 'every equivalence class needs one fully probed member',
+  V017: 'every equivalence class needs one probed member',
   V018: 'an inherited outcome must name the member it came from',
-  V019: 'Tier must be legal for the element type',
+  V019: 'behaviour of this type is only observable by interacting',
   V020: 'element Region must resolve',
   V021: 'region Contains must resolve',
   V022: 'Reveals must resolve',
@@ -203,7 +173,6 @@ const RULE_DESC = {
   V031: 'list/dropdown revealed but nothing recorded as revealed',
   V040: 'locator must hang off a component or page root',
   V041: 'a scoped element must not reach the page',
-  V042: 'locator disagreement must state a reason',
   V043: 'Resolves must be a match count taken from the live page',
   V044: 'selector matched nothing within its scope',
   V045: 'selector is ambiguous within its scope and nothing explains why',
@@ -211,48 +180,23 @@ const RULE_DESC = {
   V047: 'scope chain must reach the page without looping',
   V048: 'an element can only be scoped inside a container in its own region',
   V049: 'a typed probe must record where its value came from',
-  V061: 'a removed element must show the page no longer has it',
-  V070: 'region screenshot must exist on disk',
-  V071: 'Box must be four numbers describing a rendered element',
-  V072: 'screenshot does not match the box it claims to show',
   V050: 'component tree entry must have an output manifest row',
   V051: 'region must contain at least one element',
   V052: 'every region must be accounted for in the component tree',
   V060: 'every manifest row must be written',
+  V061: 'a removed element must show the page no longer has it',
+  V071: 'Box must be four numbers describing a rendered element',
+  V080: 'a recognized element must name the registry class it matched',
+  V081: 'a revealed container must record how to open it',
   W001: 'element could not be probed',
-  W002: 'hand-authored and Playwright locators disagree',
   W003: 'unmatched widget type, candidate for a new catalog entry',
   W004: 'region is large enough that it probably needs decomposing',
   W005: 'marked NEW although the same type is wrapped elsewhere',
-  W006: 'the run spent more than the budget approved at Gate 1',
   W007: 'the locator does not contain the selector it was grounded from',
-  W008: 'region crop is too tall to read anything in',
   W009: 'a matching control was probed with a value that cannot match',
   W010: 'selector rests on a value the framework generates',
+  W011: 'container marked NEW with no record that the registry was checked',
 };
-
-// ------------------------------------------------------------------ geometry
-
-/**
- * A PNG's dimensions live in the IHDR chunk, which is always first: 8-byte signature, then a
- * 4-byte length, "IHDR", then width and height as big-endian uint32. That is all this needs,
- * so there is no decoding and no dependency.
- *
- * Returns null for anything that is not a readable PNG — a missing or truncated file is
- * V015/V070's problem, not this one's.
- */
-function pngSize(path) {
-  let buf;
-  try {
-    buf = readFileSync(path);
-  } catch {
-    return null;
-  }
-  if (buf.length < 24) return null;
-  if (buf.readUInt32BE(0) !== 0x89504e47 || buf.readUInt32BE(4) !== 0x0d0a1a0a) return null;
-  if (buf.toString('latin1', 12, 16) !== 'IHDR') return null;
-  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
-}
 
 /** `x,y,w,h` in CSS pixels. Fractional values are normal — layout is not integral. */
 function parseBox(value) {
@@ -262,16 +206,6 @@ function parseBox(value) {
   return { x, y, w, h };
 }
 
-/** True when `file` could plausibly be a capture of `box` at some device pixel ratio. */
-function boxMatchesImage(box, img) {
-  return DEVICE_SCALES.some((s) => {
-    const ew = box.w * s;
-    const eh = box.h * s;
-    return Math.abs(img.w - ew) <= Math.max(BOX_SLACK_PX, ew * BOX_TOLERANCE)
-      && Math.abs(img.h - eh) <= Math.max(BOX_SLACK_PX, eh * BOX_TOLERANCE);
-  });
-}
-
 // ---------------------------------------------------------------- parsing
 
 function parse(content) {
@@ -279,7 +213,7 @@ function parse(content) {
   const doc = {
     lines,
     firstLine: (lines[0] || '').trim(),
-    hasVersion: lines.slice(0, 4).some((l) => l.trim() === '<!-- pom-generator/analysis v1 -->'),
+    hasVersion: lines.slice(0, 4).some((l) => l.trim() === '<!-- pom-generator/analysis v2 -->'),
     sectionOrder: [],
     meta: { fields: new Map() },
     delta: null,
@@ -401,7 +335,6 @@ function loadCatalogTypes() {
 // ---------------------------------------------------------------- validation
 
 export function validateContent(content, opts = {}) {
-  const dir = opts.dir || '.';
   const doc = parse(content);
   const errors = [];
   const warnings = [];
@@ -409,7 +342,7 @@ export function validateContent(content, opts = {}) {
   const warn = (rule, line, id, msg) => warnings.push({ rule, line, id, msg });
 
   const declared = doc.meta.fields.get('Phase')?.value;
-  const phase = opts.phase || (PHASES.includes(declared) ? declared : 'survey');
+  const phase = opts.phase || (PHASES.includes(declared) ? declared : 'inventory');
   const at = (p) => phaseAtLeast(phase, p);
 
   const fv = (o, name) => o.fields.get(name)?.value;
@@ -421,7 +354,7 @@ export function validateContent(content, opts = {}) {
     err('V001', 1, '', 'first line must be "# Analysis: <name>"');
   }
   if (!doc.hasVersion) {
-    err('V001', 2, '', 'missing "<!-- pom-generator/analysis v1 -->" in the first lines');
+    err('V001', 2, '', 'missing "<!-- pom-generator/analysis v2 -->" in the first lines');
   }
 
   // ---- V002
@@ -488,8 +421,6 @@ export function validateContent(content, opts = {}) {
    * one: the count the run got back when it asked the live page how many nodes this matches.
    * Without it, a fabricated selector is indistinguishable from a real one until the generated
    * code fails — which is much later and much more expensive.
-   *
-   * Returns the parsed count so callers can use it.
    */
   const checkResolves = (o, selectorField, expectGone = false) => {
     const raw = fv(o, 'Resolves');
@@ -507,94 +438,56 @@ export function validateContent(content, opts = {}) {
     return n;
   };
 
-  /** Geometry the run measured. A zero-sized box means the element never rendered. */
+  // ---- V071
   const checkBox = (o) => {
     const raw = fv(o, 'Box');
-    if (raw === undefined) return null;
+    if (raw === undefined) return;
     const box = parseBox(raw);
     if (!box) {
       err('V071', fl(o, 'Box'), o.id, `Box must be "x,y,w,h", got "${raw}"`);
-      return null;
+      return;
     }
     if (box.w <= 0 || box.h <= 0) {
       err('V071', fl(o, 'Box'), o.id,
         `Box is ${box.w}x${box.h} — a zero-sized element was not on screen when it was measured`);
-      return null;
-    }
-    return box;
-  };
-
-  /**
-   * The check that makes "read the screenshot" enforceable. A crop of the wrong node, or of a
-   * node whose bounding box spans the whole scroll height, produces an image that does not
-   * show what its caption says — and every conclusion drawn from it is then unfounded.
-   */
-  const checkShotGeometry = (o, shotField, path, box) => {
-    if (!box) return;
-    const img = pngSize(path);
-    if (!img) return; // not a readable PNG; existence is V015/V070's job
-    if (!boxMatchesImage(box, img)) {
-      err('V072', fl(o, shotField), o.id,
-        `${shotField} is ${img.w}x${img.h}px but Box says ${Math.round(box.w)}x${Math.round(box.h)} — `
-        + 'the image does not show the element it is filed under');
     }
   };
-
-  const viewportH = Number.parseInt((fv(doc.meta, 'Viewport') || '').split('x')[1], 10);
 
   for (const r of doc.regions) {
     for (const name of REGION_REQUIRED) {
       if (!r.fields.has(name)) err('V003', r.line, r.id, `missing required field "${name}"`);
     }
     checkResolves(r, 'Root');
-    const box = checkBox(r);
+    checkBox(r);
 
-    // ---- V070 / V072
-    const shot = fv(r, 'Shot');
-    if (shot) {
-      const p = isAbsolute(shot) ? shot : join(dir, shot);
-      if (!existsSync(p)) {
-        err('V070', fl(r, 'Shot'), r.id, `region screenshot not found: ${shot}`);
-      } else {
-        checkShotGeometry(r, 'Shot', p, box);
-      }
-    }
-
-    // ---- W008
-    if (box && Number.isFinite(viewportH) && box.h > viewportH * 2) {
-      warn('W008', fl(r, 'Box'), r.id,
-        `region is ${Math.round(box.h)}px tall against a ${viewportH}px viewport — `
-        + 'the crop is mostly whitespace and nothing in it is legible; decompose it');
+    // ---- V081
+    // A revealed container's Open-path is what the generated opener method, the verify step,
+    // and every future re-analysis reproduce the state from. Without it the dialog exists in
+    // the artifact and nowhere else.
+    if (at('probed') && fv(r, 'Component') && !(fv(r, 'Open-path') || '').trim()) {
+      err('V081', fl(r, 'Component'), r.id,
+        `revealed as ${fv(r, 'Component')} but no Open-path: records how to open it`);
     }
   }
 
   const catalog = loadCatalogTypes();
 
   for (const e of doc.elements) {
-    const required = [...ELEMENT_REQUIRED_AT.survey];
-    if (at('probed')) required.push(...ELEMENT_REQUIRED_AT.probed);
-    if (at('classified')) required.push(...ELEMENT_REQUIRED_AT.classified);
     const kind = fv(e, 'Kind');
     const status = fv(e, 'Status');
-    const tier = fv(e, 'Tier');
     const isActionable = kind === 'actionable';
-    const isTerminal = status && status !== 'pending';
     const inherited = status === 'probed-by-class';
+    const isRemoved = status === 'removed';
 
-    // An actionable element carries a tier from survey onward: it is what the Gate 1 budget
-    // is computed from, so it cannot be decided later when the cost is already sunk.
-    if (isActionable && status !== 'removed') required.push('Tier');
+    const required = [...ELEMENT_REQUIRED_AT.inventory];
+    // Recognition happens at inventory: every actionable element and every container leaves
+    // the inventory pass either matched to a registry class or explicitly NEW. Static text
+    // gets no wrapper, so it owes no Registry.
+    if ((isActionable || kind === 'container') && !isRemoved) required.push('Registry');
+    if (at('classified') && !isRemoved) required.push('Locator');
+    if (at('probed') && status === 'probed') required.push('Probe', 'Observed');
 
     for (const name of required) {
-      // probe-stage fields are only meaningful for elements that reached a terminal state,
-      // and an inherited outcome records its source instead of an action it did not perform
-      if (ELEMENT_REQUIRED_AT.probed.includes(name)) {
-        if (!isActionable || inherited || status === 'removed'
-            || (status || '').startsWith('blocked-')) continue;
-      }
-      // a removed element keeps its history but has no geometry to measure and no wrapper to
-      // write; what it does still owe is the evidence that it is gone (V061)
-      if (status === 'removed' && ['Box', 'Registry', 'Locator'].includes(name)) continue;
       if (!e.fields.has(name)) err('V003', e.line, e.id, `missing required field "${name}"`);
     }
 
@@ -615,11 +508,19 @@ export function validateContent(content, opts = {}) {
       } else if (catalog && !catalog.has(type) && !type.startsWith('other/')) {
         err('V013', fl(e, 'Type'), e.id, `Type "${type}" is not in catalog/index.md`);
       }
-      // other/text-label and friends are legitimate catalog entries; only a genuine
-      // fallback is worth surfacing as a possible missing catalog entry.
       if (type === 'other/unknown' || (type.startsWith('other/') && catalog && !catalog.has(type))) {
         warn('W003', fl(e, 'Type'), e.id, `unmatched type "${type}" — candidate for a catalog entry`);
       }
+    }
+
+    // ---- V080
+    // `recognized` is a claim that the registry already wraps this. NEW contradicts the claim,
+    // and an empty Registry leaves it unbacked — either way nothing downstream can import a
+    // class that was never named.
+    const registry = fv(e, 'Registry');
+    if (status === 'recognized' && (!registry || registry === 'NEW')) {
+      err('V080', fl(e, 'Status'), e.id,
+        'Status: recognized requires Registry: naming the matched wrapper class');
     }
 
     // ---- V046 / V047 / V048
@@ -652,15 +553,15 @@ export function validateContent(content, opts = {}) {
 
       // walk to the page; a cycle here would otherwise hang the grounding pass
       if (scopeOk) {
-        const seen = new Set([e.id]);
+        const seenIds = new Set([e.id]);
         let cur = scope;
         while (cur !== PAGE_SCOPE && elementById.has(cur)) {
-          if (seen.has(cur)) {
+          if (seenIds.has(cur)) {
             err('V047', fl(e, 'Scope'), e.id,
-              `scope chain loops: ${[...seen].join(' -> ')} -> ${cur}`);
+              `scope chain loops: ${[...seenIds].join(' -> ')} -> ${cur}`);
             break;
           }
-          seen.add(cur);
+          seenIds.add(cur);
           cur = fv(elementById.get(cur), 'Scope') ?? PAGE_SCOPE;
         }
       }
@@ -677,14 +578,13 @@ export function validateContent(content, opts = {}) {
     }
 
     // ---- V043 / V044 / V045 / V061
-    const isRemoved = status === 'removed';
     const resolves = checkResolves(e, 'Selector', isRemoved);
-    const elBox = checkBox(e);
+    checkBox(e);
     if (isRemoved) {
-      // Deleting an element is the one edit that destroys information, and it used to need no
-      // evidence at all: setting the status was enough to skip every probe requirement. That is
-      // how a conditional control -- one that only exists after some other field is set -- gets
-      // written out of an artifact on the strength of not having been seen.
+      // Deleting an element is the one edit that destroys information. Setting the status must
+      // not be enough on its own — that is how a conditional control, one that only exists after
+      // some other field is set, gets written out of an artifact on the strength of not having
+      // been seen.
       if (resolves === null) {
         err('V061', fl(e, 'Status'), e.id,
           'removal needs Resolves: 0 recorded against a fresh load of the page');
@@ -711,33 +611,13 @@ export function validateContent(content, opts = {}) {
         + 'scope it deeper, or declare the group with Class:');
     }
 
-    // ---- V019
-    if (tier !== undefined) {
-      if (!TIERS.includes(tier)) {
-        err('V019', fl(e, 'Tier'), e.id, `Tier must be one of ${TIERS.join(', ')}`);
-      } else if (tier === 'evidence') {
-        const family = (type || '').split('/')[0];
-        if (MUST_INTERACT.includes(family)) {
-          err('V019', fl(e, 'Tier'), e.id,
-            `Tier: evidence is not available for ${family}/* — its behaviour is only observable by interacting`);
-        }
-        if (list(fv(e, 'Reveals')).length) {
-          err('V019', fl(e, 'Tier'), e.id,
-            'Tier: evidence cannot reveal anything — something that opens a dialog or list must be probed');
-        }
-      }
-      if (tier === 'class' && !fv(e, 'Class')) {
-        err('V019', fl(e, 'Tier'), e.id, 'Tier: class requires a Class');
-      }
-    }
-    if (inherited && tier !== 'class') {
-      err('V018', fl(e, 'Status'), e.id, 'Status: probed-by-class is only legal at Tier: class');
-    }
-
     // ---- V018
     if (inherited) {
       const ref = fv(e, 'Class-ref');
       const cls = fv(e, 'Class');
+      if (!cls) {
+        err('V018', fl(e, 'Status'), e.id, 'Status: probed-by-class requires a Class:');
+      }
       if (!ref) {
         err('V018', fl(e, 'Status'), e.id,
           'inherited outcome must name the element it was inherited from in Class-ref');
@@ -776,27 +656,34 @@ export function validateContent(content, opts = {}) {
       warn('W001', fl(e, 'Status'), e.id, `not probed: ${status}`);
     }
 
-    const probeReady = at('probed') && isActionable && isTerminal && !inherited
-      && status !== 'removed' && !(status || '').startsWith('blocked-');
-
-    // ---- V011 / V012 / V015 / V016
-    if (probeReady) {
+    // ---- V011 / V012 / V019 / V049 / V030 / V031
+    if (at('probed') && status === 'probed') {
       const probe = fv(e, 'Probe') || '';
       const verb = probe.split(/[\s"]/)[0];
+      const reveals = list(fv(e, 'Reveals'));
       if (!ACTION_VERBS.includes(verb)) {
         err('V011', fl(e, 'Probe'), e.id,
           probe.trim() ? `"${probe.slice(0, 40)}" does not start with an action verb` : 'empty Probe');
       }
-      // `Read` is the evidence-tier verb: it states that a conclusion came from an attribute
-      // the DOM already carries. It is honest there and a dodge anywhere else.
-      if (verb === 'Read' && tier !== 'evidence') {
-        err('V011', fl(e, 'Probe'), e.id, '"Read" is only a probe at Tier: evidence');
-      }
       const needed = REQUIRED_VERBS[type];
-      if (needed && !needed.includes(verb)) {
+      if (needed && verb !== 'Read' && !needed.includes(verb)) {
         err('V011', fl(e, 'Probe'), e.id,
           `${type} is only exercised by ${needed.join(' or ')}, not "${verb}" — `
           + 'see its catalog entry');
+      }
+      // `Read` states that a conclusion came from an attribute the DOM already carries — an
+      // href, a disabled flag. Honest for a link; a dodge for anything whose behaviour only
+      // exists at interaction time.
+      if (verb === 'Read') {
+        const family = (type || '').split('/')[0];
+        if (MUST_INTERACT.includes(family)) {
+          err('V019', fl(e, 'Probe'), e.id,
+            `Probe: Read is not available for ${family}/* — its behaviour is only observable by interacting`);
+        }
+        if (reveals.length) {
+          err('V019', fl(e, 'Probe'), e.id,
+            'Probe: Read cannot reveal anything — something that opens a dialog or list must be acted on');
+        }
       }
       const observed = fv(e, 'Observed') || '';
       if (observed.length < 20) {
@@ -804,7 +691,6 @@ export function validateContent(content, opts = {}) {
           `observation too thin to be a real result (${observed.length} chars)`);
       }
 
-      // ---- V049 / W009
       // A typed value is an experiment, and where it came from is what makes the result mean
       // anything. See `05-probe-values.md`.
       if (verb === 'Typed') {
@@ -826,28 +712,8 @@ export function validateContent(content, opts = {}) {
           }
         }
       }
-      // An evidence-tier element performed no action, so there is no before/after pair to
-      // take and no state to put back. Everything else owes both.
-      if (tier !== 'evidence') {
-        const shots = list(fv(e, 'Shots'));
-        if (shots.length < 2) {
-          err('V015', fl(e, 'Shots'), e.id, 'needs a before and an after screenshot');
-        } else {
-          for (const s of shots) {
-            const p = isAbsolute(s) ? s : join(dir, s);
-            if (!existsSync(p)) err('V015', fl(e, 'Shots'), e.id, `screenshot not found: ${s}`);
-            // the "before" shot is the element in its baseline state, so it is the one the
-            // box was measured against; the "after" shot may legitimately differ in size
-            else if (s === shots[0]) checkShotGeometry(e, 'Shots', p, elBox);
-          }
-        }
-        if (!(fv(e, 'Reset') || '').trim()) {
-          err('V016', fl(e, 'Reset'), e.id, 'must record how baseline state was restored');
-        }
-      }
 
       // ---- V030 / V031
-      const reveals = list(fv(e, 'Reveals'));
       if (DIALOGISH.test(observed) && !reveals.some((r) => r.startsWith('C-'))) {
         err('V030', fl(e, 'Observed'), e.id,
           'observation mentions a dialog but no C-nn component is recorded in Reveals');
@@ -874,7 +740,7 @@ export function validateContent(content, opts = {}) {
     }
 
     // ---- V022 / V023
-    if (at('decomposed')) {
+    if (at('probed')) {
       for (const r of list(fv(e, 'Reveals'))) {
         const known = elementById.has(r) || regionById.has(r) || componentIds.has(r);
         if (!known) err('V022', fl(e, 'Reveals'), e.id, `Reveals "${r}" does not resolve`);
@@ -884,7 +750,7 @@ export function validateContent(content, opts = {}) {
       }
     }
 
-    // ---- V040 / V041 / V042
+    // ---- V040 / V041 / W007
     if (at('classified')) {
       const loc = fv(e, 'Locator');
       if (loc !== undefined) {
@@ -901,18 +767,16 @@ export function validateContent(content, opts = {}) {
             `scoped to ${scope} but rooted at ${root[0]} — a component locates from its own root`);
         }
         // a page handle smuggled into the body of an otherwise correctly rooted locator
-        if (root && /\b(?<!this\.)(?<!self\.)page\./.test(inner.slice(root[0].length))) {
+        if (root && scope !== PAGE_SCOPE
+            && /\b(?<!this\.)(?<!self\.)page\./.test(inner.slice(root[0].length))) {
           err('V041', fl(e, 'Locator'), e.id, 'reaches the page from inside a component');
         }
       }
-      // ---- W007
       // `Selector:` was checked against the live page; `Locator:` is what actually gets
       // written into the wrapper. When the second stops containing the first, the grounding
-      // no longer covers the thing being generated — which is exactly how a selector copied
-      // out of the component registry ends up in code without ever touching the page.
-      // A role- or label-based locator is a different expression of the same node, not an
-      // ungrounded one — that is what Locator-pw exists to record. Only a raw selector string
-      // passed to locator() makes a claim that Selector: was supposed to have checked.
+      // no longer covers the thing being generated. A role- or label-based locator is a
+      // different expression of the same node, not an ungrounded one; only a raw selector
+      // string passed to locator() makes a claim Selector: was supposed to have checked.
       const sel = (fv(e, 'Selector') || '').replace(/^`|`$/g, '').trim();
       const locRaw = (fv(e, 'Locator') || '').replace(/^`|`$/g, '').trim();
       const norm = (s) => s.replace(/["']/g, '"').replace(/\s+/g, '');
@@ -921,14 +785,6 @@ export function validateContent(content, opts = {}) {
           && !args.some((a) => norm(a).includes(norm(sel)) || norm(sel).includes(norm(a)))) {
         warn('W007', fl(e, 'Locator'), e.id,
           `Locator selects on ${args[0].slice(0, 30)} but Selector: grounded ${sel.slice(0, 30)}`);
-      }
-
-      const agree = fv(e, 'Locator-agree');
-      if (agree !== undefined && /^no\b/.test(agree)) {
-        if (!/\s[—–-]\s\S/.test(agree)) {
-          err('V042', fl(e, 'Locator-agree'), e.id, 'disagreement must be followed by " — <reason>"');
-        }
-        warn('W002', fl(e, 'Locator-agree'), e.id, agree.slice(0, 60));
       }
     }
   }
@@ -953,14 +809,6 @@ export function validateContent(content, opts = {}) {
     }
   }
 
-  // ---- W006
-  const budget = Number.parseInt((fv(doc.meta, 'Budget') || '').replace(/[^0-9]/g, ''), 10);
-  const spent = Number.parseInt((fv(doc.meta, 'Spent') || '').replace(/[^0-9]/g, ''), 10);
-  if (Number.isFinite(budget) && Number.isFinite(spent) && spent > budget) {
-    warn('W006', fl(doc.meta, 'Spent'), 'Meta',
-      `spent ${spent} against a budget of ${budget} approved at Gate 1`);
-  }
-
   // ---- W005
   const wrapped = new Map();
   for (const e of doc.elements) {
@@ -973,6 +821,20 @@ export function validateContent(content, opts = {}) {
     if (fv(e, 'Registry') === 'NEW' && type && wrapped.has(type)) {
       warn('W005', fl(e, 'Registry'), e.id,
         `same type is already wrapped by ${wrapped.get(type)}`);
+    }
+  }
+
+  // ---- W011
+  // W005 only catches a registry miss when this same run already wrapped the same `Type:`
+  // elsewhere — it never reads component-registry.md, because fuzzily matching a DOM shape
+  // against that file's free-form prose isn't something a script can do. The recognition pass
+  // puts that comparison on the model instead ("close but different -> NEW plus a Notes: line"),
+  // and requiring a Notes: line on every NEW container is the cheap proxy that forces the
+  // comparison onto the page, even when the answer is "nothing in the registry resembles this."
+  for (const e of doc.elements) {
+    if (fv(e, 'Kind') === 'container' && fv(e, 'Registry') === 'NEW' && !fv(e, 'Notes')) {
+      warn('W011', fl(e, 'Registry'), e.id,
+        'no Notes: — record what in component-registry.md this was compared against');
     }
   }
 
@@ -993,18 +855,18 @@ export function validateContent(content, opts = {}) {
   }
 
   // ---- V050 / V052 / V060
-  if (at('decomposed')) {
-    const manifestFiles = new Set(doc.manifest.map((m) => m.file));
-    for (const t of doc.tree) {
-      if (!/^REUSE\b/.test(t.marker) && !manifestFiles.has(t.path)) {
-        err('V050', t.line, t.className, `no output manifest row for ${t.path}`);
-      }
+  // The tree and manifest exist from the checkpoint on, and they grow during probing as
+  // containers are revealed — so these hold at every phase from inventory.
+  const manifestFiles = new Set(doc.manifest.map((m) => m.file));
+  for (const t of doc.tree) {
+    if (!/^REUSE\b/.test(t.marker) && !manifestFiles.has(t.path)) {
+      err('V050', t.line, t.className, `no output manifest row for ${t.path}`);
     }
-    for (const r of doc.regions) {
-      if (!treeText.includes(r.id) && !/page-level/i.test(fv(r, 'Notes') || '')) {
-        err('V052', r.line, r.id,
-          'region is not referenced by any component tree entry and is not marked page-level');
-      }
+  }
+  for (const r of doc.regions) {
+    if (!treeText.includes(r.id) && !/page-level/i.test(fv(r, 'Notes') || '')) {
+      err('V052', r.line, r.id,
+        'region is not referenced by any component tree entry and is not marked page-level');
     }
   }
   if (at('generated')) {
@@ -1059,69 +921,62 @@ const MUTATIONS = [
   ['V001', '# Analysis: Employees', '# Employees'],
   ['V002', '## Output manifest', '## Outputs'],
   ['V003', '**Viewport:** 1440x900', '**Viewport:** big'],
-  ['V003', '**Kind:** actionable\n**Type:** actions/button\n**Tier:** full\n**Probe:** Clicked',
-    '**Knid:** actionable\n**Type:** actions/button\n**Tier:** full\n**Probe:** Clicked'],
-  ['V004', '### E-03 — Create employee', '### E-03 Create employee'],
-  ['V010', '**Locator-agree:** no — project convention is data-aid first\n**Status:** probed',
-    '**Locator-agree:** no — project convention is data-aid first\n**Status:** pending'],
-  ['V011', '**Probe:** Selected "Active"', '**Probe:** Observed'],
-  ['V012', '**Observed:** listbox opened with 4 options; GET /api/employees?status=active fired; table went 84 -> 31 rows',
+  ['V003', '**Kind:** actionable\n**Type:** actions/button\n**Registry:** NEW\n**Probe:** Clicked',
+    '**Knid:** actionable\n**Type:** actions/button\n**Registry:** NEW\n**Probe:** Clicked'],
+  ['V004', '### E-02 — Create employee', '### E-02 Create employee'],
+  ['V010', '**Locator:** `this.element.locator("th[class*=\'_nameHeader_\']")`\n**Status:** probed',
+    '**Locator:** `this.element.locator("th[class*=\'_nameHeader_\']")`\n**Status:** pending'],
+  ['V011', '**Probe:** Clicked "Cancel"', '**Probe:** Observed'],
+  // required-verb: typing is the only action that exercises a search input; a click is not
+  ['V011', '**Probe:** Typed "Rivera"', '**Probe:** Clicked "Rivera"'],
+  ['V012', '**Observed:** table filtered live from 84 to 3 rows; a clear icon appeared inside the field; count label updated',
     '**Observed:** works'],
   ['V013', '**Type:** selection/single-select', '**Type:** selection/magic-widget'],
-  ['V014', '**Locator-agree:** yes\n**Status:** static-confirmed',
-    '**Locator-agree:** yes\n**Status:** probed'],
-  ['V015', './screens/E-02-after.png', './screens/nope.png'],
-  ['V016', '**Reset:** re-selected "All statuses", confirmed 84 rows', '**Reset:** '],
+  ['V014', '**Status:** static-confirmed', '**Status:** probed'],
   // the class representative stops being probed, so nothing in the class was ever observed
-  ['V017', '**Locator-pw:** `getByRole(\'option\', { name: \'Active\' })`\n**Locator-agree:** yes\n**Status:** probed',
-    '**Locator-pw:** `getByRole(\'option\', { name: \'Active\' })`\n**Locator-agree:** yes\n**Status:** blocked-flaky'],
-  ['V018', '**Class-ref:** E-06', '**Class-ref:** E-77'],
-  ['V019', '**Type:** actions/link\n**Tier:** evidence', '**Type:** selection/single-select\n**Tier:** evidence'],
-  ['V020', '**Region:** R-02\n**Scope:** R-02\n**Visual:** pill-shaped',
-    '**Region:** R-99\n**Scope:** R-02\n**Visual:** pill-shaped'],
-  ['V021', '**Contains:** E-02, E-03', '**Contains:** E-02, E-03, E-77'],
-  ['V022', '**Reveals:** C-02', '**Reveals:** C-99'],
-  ['V023', '(C-01, R-04, opened by E-03)', '(R-04, opened by E-03)'],
-  ['V024', '**Affects:** E-04\n**Reset:** re-selected', '**Affects:** E-88\n**Reset:** re-selected'],
-  ['V025', '**Contains:** E-02, E-03', '**Contains:** E-02'],
-  ['V030', '**Reveals:** C-01\n**Affects:** E-04', '**Affects:** E-04'],
-  ['V031', '**Reveals:** C-02\n**Affects:** E-04', '**Affects:** E-04'],
-  ['V040', '**Locator:** `this.element.locator("[data-aid=\'create\']")`',
-    '**Locator:** `document.querySelector("[data-aid=\'create\']")`'],
-  ['V041', '**Locator:** `this.element.locator("[data-aid=\'create\']")`',
+  ['V017', '**Locator:** `this.element.locator("[data-aid=\'active-filter-group\']")`\n**Status:** probed',
+    '**Locator:** `this.element.locator("[data-aid=\'active-filter-group\']")`\n**Status:** blocked-flaky'],
+  ['V018', '**Class-ref:** E-08', '**Class-ref:** E-77'],
+  // Read on a family whose behaviour only exists at interaction time
+  ['V019', '**Type:** actions/link', '**Type:** selection/single-select'],
+  ['V020', '### E-03 — Team filter\n**Region:** R-02', '### E-03 — Team filter\n**Region:** R-99'],
+  ['V021', '**Contains:** E-03, E-04, E-07, E-08, E-15', '**Contains:** E-03, E-04, E-07, E-08, E-15, E-77'],
+  ['V022', '**Reveals:** C-01', '**Reveals:** C-99'],
+  ['V023', '(C-01, R-04, opened by E-02)', '(R-04, opened by E-02)'],
+  ['V024', '**Affects:** E-11', '**Affects:** E-88'],
+  ['V025', '**Contains:** E-05, E-06, E-16', '**Contains:** E-05, E-16'],
+  ['V030', '**Reveals:** C-01\n', ''],
+  ['V031', '**Reveals:** C-02, E-16\n', ''],
+  ['V040', '**Locator:** `this.element.locator("[data-aid=\'role-select\']")`',
+    '**Locator:** `document.querySelector("[data-aid=\'role-select\']")`'],
+  ['V041', '**Locator:** `this.element.locator("input[class*=\'_gradeInput_\']")`',
     '**Locator:** `this.element.locator(page.url())`'],
-  ['V042', '**Locator-agree:** no — project convention is data-aid first', '**Locator-agree:** no'],
-  ['V043', "**Selector:** `[data-aid='create']`\n**Resolves:** 1",
-    "**Selector:** `[data-aid='create']`\n**Resolves:** several"],
-  ['V044', "**Selector:** `[data-aid='full-name']`\n**Resolves:** 1",
-    "**Selector:** `[data-aid='full-name']`\n**Resolves:** 0"],
-  ['V045', "**Selector:** `button[class*='_clear_']`\n**Resolves:** 1",
-    "**Selector:** `button[class*='_clear_']`\n**Resolves:** 2"],
-  ['V046', '### E-05 — Full name field\n**Region:** R-04\n**Scope:** R-04',
-    '### E-05 — Full name field\n**Region:** R-04\n**Scope:** R-99'],
-  // the row scoped inside its own cell, which is scoped inside the row
-  ['V047', '### E-10 — Employee row\n**Region:** R-03\n**Scope:** E-04',
-    '### E-10 — Employee row\n**Region:** R-03\n**Scope:** E-11'],
+  ['V043', '**Resolves:** 24', '**Resolves:** several'],
+  ['V044', "**Selector:** `button[class*='_clear_']`\n**Resolves:** 1",
+    "**Selector:** `button[class*='_clear_']`\n**Resolves:** 0"],
+  ['V045', "**Selector:** `th[class*='_nameHeader_']`\n**Resolves:** 1",
+    "**Selector:** `th[class*='_nameHeader_']`\n**Resolves:** 2"],
+  ['V046', '### E-16 — Grade field\n**Region:** R-04\n**Scope:** R-04',
+    '### E-16 — Grade field\n**Region:** R-04\n**Scope:** R-99'],
+  // the row scoped inside itself
+  ['V047', '### E-10 — Employee row\n**Region:** R-03\n**Scope:** R-03',
+    '### E-10 — Employee row\n**Region:** R-03\n**Scope:** E-10'],
   // scoped inside a leaf control rather than a container
-  ['V048', '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** R-04',
-    '### E-07 — Clear full name\n**Region:** R-04\n**Scope:** E-05'],
+  ['V048', '### E-07 — Clear search icon\n**Region:** R-02\n**Scope:** R-02',
+    '### E-07 — Clear search icon\n**Region:** R-02\n**Scope:** E-04'],
   ['V049', '**Probe:** Typed "Rivera"\n**Value-source:** page-data', '**Probe:** Typed "Rivera"'],
-  // opening a dropdown and closing it again, recorded as though it were a probe
-  ['V011', '**Type:** selection/single-select\n**Tier:** full\n**Probe:** Selected "Active"',
-    '**Type:** selection/single-select\n**Tier:** full\n**Probe:** Clicked'],
-  // an element declared gone while the page still has it
-  ['V061', "**Selector:** `[data-testid='export']`\n**Resolves:** 0",
-    "**Selector:** `[data-testid='export']`\n**Resolves:** 1"],
-  ['V070', '**Shot:** ./screens/R-03.png', '**Shot:** ./screens/gone.png'],
-  ['V071', '**Box:** 0,72,1440,64', '**Box:** 0,72,1440'],
-  // the fixture's R-04 crop is generated at 600x420; claiming a taller box makes the image
-  // stop matching what it is filed under, which is the R-05-shows-the-header failure
-  ['V072', '**Box:** 420,180,600,420', '**Box:** 420,180,600,900'],
   ['V050', '| src/components/CreateEmployeeDialog.ts | CreateEmployeeDialog | component | planned |\n', ''],
-  ['V051', '**Contains:** E-04, E-10, E-11', '**Contains:** '],
+  ['V051', '**Contains:** E-17', '**Contains:** '],
   ['V052', '(R-02)', '(no region)'],
   // V060 only applies once the run claims to have emitted code.
   ['V060', '**Phase:** classified', '**Phase:** generated', 'generated'],
+  // an element declared gone while the page still has it
+  ['V061', "**Selector:** `[data-testid='export']`\n**Resolves:** 0",
+    "**Selector:** `[data-testid='export']`\n**Resolves:** 1"],
+  ['V071', '**Box:** 24,84,320,40', '**Box:** 24,84,320'],
+  // recognized without a registry class to back it
+  ['V080', '**Registry:** TeamSelect', '**Registry:** NEW'],
+  ['V081', '**Open-path:** click E-02 (create employee button)\n', ''],
 ];
 
 /**
@@ -1153,95 +1008,16 @@ function catalogSelfCheck() {
   return 1;
 }
 
-/**
- * V015 checks that the screenshots an artifact references exist on disk, so the valid
- * fixture needs its `screens/` files present to validate clean. Rather than committing
- * a pile of empty .png placeholders, build a throwaway copy of the fixture in a temp
- * directory with the referenced files created on the fly. The repo keeps one file.
- */
-const CRC_TABLE = (() => {
-  const t = new Int32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c;
-  }
-  return t;
-})();
-
-const crc32 = (buf) => {
-  let c = -1;
-  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
-  return (c ^ -1) >>> 0;
-};
-
-/**
- * A PNG signature plus a well-formed IHDR chunk and nothing else. No image viewer will open
- * it, which is fine: the only consumer is `pngSize`, and what the self-test needs is a file
- * that truthfully reports a width and a height so V072 can be exercised for real rather than
- * asserted against a stub that always skips.
- */
-function pngHeaderOnly(w, h) {
-  const ihdr = Buffer.alloc(17);
-  ihdr.write('IHDR', 0, 'latin1');
-  ihdr.writeUInt32BE(w, 4);
-  ihdr.writeUInt32BE(h, 8);
-  ihdr[12] = 8;   // bit depth
-  ihdr[13] = 6;   // colour type: RGBA
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(13, 0);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(ihdr), 0);
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    len, ihdr, crc,
-  ]);
-}
-
-/**
- * V015 and V070 check that an artifact's screenshots exist, and V072 checks that they are the
- * size their `Box:` claims. Rather than committing a pile of binary placeholders, build a
- * throwaway copy of the fixture in a temp directory with header-only PNGs generated at the
- * sizes the fixture declares. The repo keeps one file.
- */
-function materializeFixture() {
-  const src = join(FIXTURES, 'valid', 'analysis.md');
-  if (!existsSync(src)) return null;
-  const content = readFileSync(src, 'utf8');
-  const dir = mkdtempSync(join(tmpdir(), 'pom-selftest-'));
-  mkdirSync(join(dir, 'screens'), { recursive: true });
-
-  // map each screenshot to the box of the block that references it
-  const sizes = new Map();
-  for (const block of content.split(/^### /m).slice(1)) {
-    const box = parseBox((block.match(/^\*\*Box:\*\* (.+)$/m) || [])[1]);
-    if (!box) continue;
-    // Shots lists before then after; the before shot is the one measured against the box
-    const shots = (block.match(/^\*\*Shots?:\*\* (.+)$/m) || [])[1];
-    if (!shots) continue;
-    const first = shots.split(',')[0].trim().match(/([A-Za-z0-9._-]+)$/);
-    if (first) sizes.set(first[1], box);
-  }
-
-  for (const m of content.matchAll(/\.\/screens\/([A-Za-z0-9._-]+)/g)) {
-    const box = sizes.get(m[1]);
-    writeFileSync(join(dir, 'screens', m[1]),
-      box ? pngHeaderOnly(Math.round(box.w), Math.round(box.h)) : Buffer.alloc(0));
-  }
-  writeFileSync(join(dir, 'analysis.md'), content);
-  return { dir, content };
-}
-
 function selfTest() {
-  const fixture = materializeFixture();
-  if (!fixture) {
-    console.error(`self-test: missing fixture ${join(FIXTURES, 'valid', 'analysis.md')}`);
+  const src = join(FIXTURES, 'valid', 'analysis.md');
+  if (!existsSync(src)) {
+    console.error(`self-test: missing fixture ${src}`);
     return 1;
   }
-  const { dir, content: base } = fixture;
+  const base = readFileSync(src, 'utf8');
   let failed = catalogSelfCheck();
 
-  const clean = validateContent(base, { dir, phase: 'classified' });
+  const clean = validateContent(base, { phase: 'classified' });
   if (clean.errors.length) {
     failed++;
     console.log('FAIL  valid fixture produced errors:');
@@ -1262,7 +1038,7 @@ function selfTest() {
       continue;
     }
     const mutated = base.replace(find, replace);
-    const res = validateContent(mutated, { dir, phase: phase || 'classified' });
+    const res = validateContent(mutated, { phase: phase || 'classified' });
     const fired = res.errors.some((e) => e.rule === rule);
     if (fired) {
       console.log(`ok    ${rule} fires when violated`);
@@ -1272,8 +1048,6 @@ function selfTest() {
         [...new Set(res.errors.map((e) => e.rule))].join(', ') || 'none'}`);
     }
   }
-
-  rmSync(dir, { recursive: true, force: true });
 
   console.log(failed ? `\n${failed} self-test failure(s)` : '\nall self-tests passed');
   return failed ? 1 : 0;
@@ -1309,7 +1083,7 @@ function main(argv) {
     return 1;
   }
 
-  const result = validateContent(readFileSync(file, 'utf8'), { dir: dirname(file), phase: phaseArg });
+  const result = validateContent(readFileSync(file, 'utf8'), { phase: phaseArg });
   if (json) console.log(JSON.stringify(result, null, 2));
   else console.log(report(result, 'analysis.md'));
 

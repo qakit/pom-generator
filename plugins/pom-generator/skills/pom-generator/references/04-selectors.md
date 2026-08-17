@@ -6,7 +6,7 @@ Everything below follows from that one requirement.
 This document deliberately names no attribute as *the* right one. `data-testid`, `data-qa`,
 `data-aid`, `data-test`, `data-cy` are all conventions some teams use and others have never heard
 of, and plenty of applications have none of them. Which one this app uses — if any — is
-**measured** at survey and recorded in `Meta.Selector-strategy`, not assumed here.
+**measured** at inventory and recorded in `Meta.Selector-strategy`, not assumed here.
 
 ---
 

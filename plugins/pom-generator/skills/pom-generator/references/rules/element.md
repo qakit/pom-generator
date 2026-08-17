@@ -17,13 +17,10 @@ Neither alone is sufficient.
 - **Visual alone** misses that a control that looks like a text box is a combobox, and that two
   identical-looking chips are one filter and one static badge.
 
-So: write `Visual:` from the screenshot *first*, before reading the DOM, then write `DOM:`, then
-reconcile. When they disagree, the disagreement is the finding — record it in `Notes:` and let the
-behavioural probe settle it. A quiet resolution in favour of whichever was read last is how a
-wrong type gets locked in.
-
-`browser_evaluate` settles most of these: a computed `cursor: pointer`, an attached handler, or a
-class stem containing `btn` tells you what the markup does not say.
+The bulk extraction supplies the DOM half (tag, role, hook, computed `cursor`, handler signals);
+the baseline screenshot supplies the visual half. When they disagree, the disagreement is the
+finding — record it in `Notes:` and let a probe settle it. A quiet resolution in favour of
+whichever was read last is how a wrong type gets locked in.
 
 ## E2. The probe must match the element type
 
@@ -54,6 +51,11 @@ and "I did not see it" then gets written down as "it is not there".
 
 Not from a sibling. Not from a similar label. Not from a control in the same toolbar. Not from
 the same-looking button on a different row.
+
+(Recognition against the registry is not inference from another element — it is inference from
+the *codebase*, whose wrapper documents the behaviour, and it is declared as
+`Status: recognized` with the class named. What this rule forbids is carrying one on-page
+element's probe outcome to another silently.)
 
 Two buttons that look alike routinely differ: one navigates, one opens a dialog, one does neither.
 An analysis that carries a tested element's outcome across to an untested one *looks complete in
@@ -98,9 +100,9 @@ Each probe starts from baseline. Probing element B while element A's dropdown is
 B's click intercepted and B misclassified — and then the wrong wrapper is written for an element
 nobody realised was never reached.
 
-After each probe: undo what changed, verify with a snapshot, and record how in `Reset:`.
-**If state is ambiguous or an overlay will not dismiss, navigate to the page URL again.** That is
-the correct recovery, not a workaround, and it is always available.
+When a probe left state behind — an overlay open, a filter applied, a value in a form —
+**navigate to the page URL again.** That is the reset, it is always available, and it is never
+worth agonizing over. Undoing the specific change is fine when it is obviously sufficient.
 
 ## E7. Selector proximity
 
@@ -145,22 +147,13 @@ which class wraps this element. **It is never a source of selectors.**
 generated file. The split is what lets one `browser_evaluate` check a Python project's selectors
 and a TypeScript project's identically, and W007 keeps the two from drifting apart.
 
-The same applies to geometry. `Box:` is measured, and V072 checks the screenshot filed against it
-really is that size, because a crop of the wrong node still produces a perfectly good-looking image
-— and every description written from it is then wrong in a way nothing downstream can see.
+## E9. A locator you are unsure of is looked at, not trusted
 
-## E9. Locators are cross-checked, never delegated
-
-Author the locator from `conventions.md`'s priority order, then ask
-`browser_generate_locator` for Playwright's opinion and record it in `Locator-pw`.
-
-They serve different purposes: yours respects project convention and component scoping;
-Playwright's is canonical and page-rooted. **Disagreement is information, not an error to
-resolve quietly** — it usually means either your selector reaches deeper than it needs to, or the
-element is genuinely ambiguous. Record it as `Locator-agree: no — <reason>` (V042) and let it
-surface as a warning.
-
-Never invent a `Locator-pw` value. If the tool is unavailable, say so in `Meta.Tools-degraded`.
+`Resolves: 1` proves a selector is real and unambiguous; it says nothing about whether it points
+at the control you described. For the few locators where that doubt is real — an icon in a row of
+icons, a text anchor on a page full of similar text — `browser_highlight` plus a screenshot
+settles it before it reaches generated code. The systematic visual pass happens in
+`generate/verify.md`.
 
 ## E10. Naming comes from behaviour, not from appearance
 
@@ -178,23 +171,22 @@ over the shapes suggested in the catalog.
 
 ## E11. Effort is proportional to what is at stake
 
-Every element carries a `Tier:` (`02-artifact-schema.md`), and the tiers exist because a flat
-per-element cost is what turns a page into a two-hour run that never reaches code generation. An
-analysis that is thorough about seven navigation links and never opens the dialog has spent its
-budget on the part nobody was going to get wrong.
+A flat per-element cost is what turns a page into a two-hour run that never reaches code
+generation. An analysis that is thorough about seven navigation links and never opens the dialog
+has spent its budget on the part nobody was going to get wrong.
 
 The invariant is not "be fast". It is:
 
-- **Spend `full` on what the page is for.** Dialogs, drawers, the controls that change the
-  collection, anything that reveals something, anything conditional.
-- **Never buy a conclusion cheaper than the evidence for it.** `Tier: evidence` is for markup that
+- **Recognition first.** A control the registry fingerprints is answered by the codebase, at zero
+  browser cost. Probing it re-learns what is already documented.
+- **Spend the probes on what the page is for.** Dialogs, drawers, the controls that change the
+  collection, anything that reveals something, anything conditional, anything unrecognized.
+- **Never buy a conclusion cheaper than the evidence for it.** `Probe: Read` is for markup that
   already states the answer, which is why V019 refuses it for every family whose behaviour only
   exists at interaction time.
-- **A tier may be raised mid-run, never lowered.** Discovering that a link intercepts its click, or
-  that a class member has a different handler, is a reason to probe it properly — not a reason to
-  keep the cheap tier and write a plausible sentence.
-- **A budget overrun is reported, not absorbed.** Stopping at 1.5× with honest `pending` statuses
-  beats an unbounded run, because the artifact is still usable and the user still has a decision.
+- **Doubt escalates, never de-escalates.** Discovering that a "link" intercepts its click, or that
+  a class member has a different handler, is a reason to probe it properly — not a reason to write
+  a plausible sentence.
 
 ## E12. State-dependent elements are elements
 

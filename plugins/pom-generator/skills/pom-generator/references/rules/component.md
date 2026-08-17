@@ -90,7 +90,7 @@ already made and must be followed.
 **The item's own parts belong to the item, not to the page inventory.** A row showing an avatar, a
 name, a date range, a status and a type is *one* `E-nn` for the row plus accessors on the row
 component — not five page-level elements, and certainly not five per row. Inventorying cells
-individually inflates the survey, inflates the Gate 1 budget, and produces position-indexed
+individually inflates the inventory, inflates the probe list, and produces position-indexed
 locators like `row cell >> nth=3` that break the first time a column moves.
 
 The controls *inside* a row that do something — an action button, a link, a checkbox — are real

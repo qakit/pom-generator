@@ -85,7 +85,7 @@ at preflight, record it in `Meta.Viewport`, and treat a different viewport as a 
 A responsive page that collapses its nav into a hamburger below some width has genuinely different
 elements at the two sizes. Analyzing one and generating for both is a wrong wrapper.
 
-## P9. Everything in the survey is accounted for
+## P9. Everything in the inventory is accounted for
 
 Nothing in the page is left unassigned. Every element belongs to a region; every region is either
 claimed by a component in the tree or explicitly marked page-level (V020, V025, V052).

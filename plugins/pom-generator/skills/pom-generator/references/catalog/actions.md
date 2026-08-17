@@ -45,7 +45,7 @@ recorded as `Status: blocked-safety` unless the user grants permission for that 
 **Reset:** as `actions/button`
 **Wrapper shape:** named from the tooltip or the observed effect: `openColumnSettings()`, not `clickGearIcon()`
 
-**These are the elements most often missed in survey.** They have no text, so a text-based scan of
+**These are the elements most often missed in inventory.** They have no text, so a text-based scan of
 the snapshot skips them. The P1 second sweep exists specifically to catch them.
 
 ## actions/link

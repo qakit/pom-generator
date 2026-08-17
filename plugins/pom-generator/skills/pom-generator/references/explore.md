@@ -80,6 +80,13 @@ Find every recurring custom widget wrapper — dropdowns, tables, modals, badges
 each, capture the DOM signature, wrapper class and file, key methods, and what it should not be
 confused with.
 
+**Every entry gets a `Fingerprint:`** (`registry-format.md`) — a real selector that matches this
+component's root wherever it appears. Derive it from the selectors the wrapper class itself uses:
+the class knows what it locates by, and that is by definition the signature of the thing it wraps.
+The analyze run's recognition pass matches whole pages against these fingerprints in bulk, and
+every control it recognizes is a control it never has to probe — this field is what makes analysis
+fast, so it is worth a minute per entry to get right.
+
 → Write `component-registry.md` using the entry format in `registry-format.md`.
 → **STOP.** Show it. Wait.
 

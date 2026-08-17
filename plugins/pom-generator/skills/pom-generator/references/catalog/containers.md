@@ -10,7 +10,7 @@ Things that hold other things. The family rule:
 This is enforced: validator rule **V030** fails any element whose observation mentions a dialog
 without a `C-nn` in `Reveals:`, and V023/V050 chase that `C-nn` through to a planned output file.
 
-The mechanics of recursion are in `analyze/p3-probe.md` — a revealed container simply appends
+The mechanics of recursion are in `analyze/probe.md` — a revealed container simply appends
 `pending` elements to the queue the loop is already draining. It is not a special case.
 
 ---

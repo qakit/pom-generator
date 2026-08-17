@@ -4,8 +4,12 @@
 `.pom-generator/analysis/<slug>/analysis.md`.
 
 **It writes no Page Object code.** That is `/pom-generate`, and it runs from the artifact alone.
-The split is deliberate: interleaving probing and code-writing is what caused elements to be
-dropped mid-run.
+
+**Recognition comes before probing.** The first question about every control is the one an
+experienced SDET asks: *do I already have a wrapper for this?* Most controls on most pages are
+instances of components the codebase already wraps — matched by the registry's fingerprints, they
+are `recognized` and never probed. Interaction is reserved for the short list of controls whose
+behaviour is genuinely unknown. A page should cost tens of tool calls, not hundreds.
 
 ---
 
@@ -14,87 +18,78 @@ dropped mid-run.
 | | Phase | Produces | Gate |
 |---|---|---|---|
 | P0 | Preflight | `## Meta`, an empty skeleton | — |
-| P1 | Survey | `## Regions`, `## Elements` all `pending` | **STOP** |
-| P2 | Decompose | `## Component tree`, `## Output manifest` | **STOP** |
-| P3 | Probe | every element reaches a terminal status | — |
-| P4 | Classify | `Registry`, `Locator*`, `## Delta` | — |
+| P1 | Inventory | regions, all elements, recognition results, tree, manifest, **the probe list** | **CHECKPOINT** |
+| P2 | Probe | every element reaches a terminal status | — |
+| P3 | Finalize | final `Locator`s, completed tree, `## Delta` | — |
 
-Each phase's document: `p1-survey.md`, `p2-decompose.md`, `p3-probe.md`, `p4-classify.md`.
+P1's document: `inventory.md`. P2: `probe.md`. P3: `finalize.md`.
 Read the one you are in; do not work from memory of a previous run.
 
-After each phase, run the validator for that phase and advance `Meta.Phase` only when it passes:
+After each phase, run the validator and advance `Meta.Phase` only when it passes:
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" --phase=<phase> .pom-generator/analysis/<slug>
 ```
 
-## The two gates
+(`--phase=inventory` after P1, `--phase=probed` after P2, full run after P3.)
 
-Both exist because these are the errors that are expensive to undo.
+## The one checkpoint
 
-**Gate 1, after survey.** Present the region map, the element inventory as a table, and **the
-budget**. The user is checking two things: something *missing* — a toolbar you did not see, a
-control in a side panel — and whether P3 is about to spend its time on the right controls. Catching
-either here costs one edit; catching it later costs the whole probe run.
+After inventory, present in one message:
 
-The budget is a real number of tool calls, derived from the `Tier:` assigned to each element, and
-it goes into `Meta.Budget` once approved. P3 is unattended, so this is the last point at which its
-cost is negotiable.
+1. the region map — each region, its name, its element count
+2. **what was recognized** — a table of element → matched wrapper class, per region
+3. **the probe list** — the elements that will actually be interacted with, each with one line of
+   why recognition could not answer it
+4. anything you were unsure about — boundaries, near-miss registry matches, suspected duplicates
+5. the planned output files
 
-**Gate 2, after decomposition.** Present the component tree. The user is checking *boundaries* — is
-that really one filter panel, should the table and its toolbar be separate. A wrong boundary
-propagates into every generated file, and unlike a wrong selector nothing downstream catches it.
+Then ask two things, plainly:
 
-Probing (P3) runs unattended. It is long, mechanical, and self-checking; the artifact is the review
-surface when it finishes — and it stops at 1.5× the approved budget rather than running until
-somebody gives up.
+- **Is anything missing or misidentified?** A missed control is the one error nothing downstream
+  recovers from; a wrong recognition writes the wrong wrapper everywhere it appears.
+- **Is the probe list right?** They know which controls matter and which existing wrapper a
+  near-miss really is.
 
-Stop means stop: present, and wait for the user's reply. Do not run the next phase in the same
-turn.
+**Stop and wait.** One reply here costs seconds and replaces the two separate gates the old
+pipeline had. Probing then runs unattended to the end of the run — the artifact is the review
+surface when it finishes.
 
 ## Resuming
 
-The artifact is the state of the run, not a report written at the end. It is rewritten after every
+The artifact is the state of the run, not a report written at the end. It is updated after every
 element, so an interrupted run — crash, context compaction, the user walking away — loses at most
 one element.
 
-To resume, read `Meta.Phase` and continue from there. If `Phase: probed` but elements are still
-`pending`, just keep draining the queue; that is the normal resume path and needs no special
-handling.
+To resume, read `Meta.Phase` and continue from there. If `Phase: inventory` (approved) and
+elements are still `pending`, just keep draining the probe queue; that is the normal resume path.
 
-**Re-bind by `Selector:`, never by `Snapshot-ref:`.** Snapshot handles are minted per session by
-the MCP server; after a restart they point at nothing, or at something else. A resume that compares
-stored handles against a fresh snapshot concludes that every element has moved and that the page
-has changed — which is a report about the tooling, not about the app. Take a fresh snapshot, run
-the grounding pass over the stored selectors, and use the result: what still resolves is still
-there.
+**Re-bind by `Selector:`, never by a snapshot handle.** Snapshot handles are minted per session by
+the MCP server; after a restart they point at nothing, or at something else. Take a fresh
+snapshot, run the grounding pass over the stored selectors, and use the result: what still
+resolves is still there.
 
-Never restart from P1 on a run that has probe results. Re-probing is expensive and discards
-observations that are still valid.
+Never restart from P1 on a run that has probe results. Re-probing discards observations that are
+still valid.
 
 ## Re-analysis (delta mode)
 
 If `analysis.md` already exists for this slug, this is a re-analysis. Do not overwrite it.
 
 1. Keep the existing file as the comparison base.
-2. Run P1 fresh against the live page.
-3. Compare by **selector and DOM signature**, not by `E-nn` ID and never by snapshot handle — the
-   IDs are ours, the handles belong to the session, and the page's identity is what changed or did
-   not.
+2. Run P1 fresh against the live page (the bulk extraction makes this cheap).
+3. Compare by **selector and DOM signature**, not by `E-nn` ID and never by snapshot handle.
 4. Write `## Delta` (`02-artifact-schema.md`) recording Added / Removed / Changed / Unchanged.
-5. **Only `pending` elements get probed.** Unchanged elements keep their existing observations —
-   re-probing a control that did not change wastes a run and gains nothing.
+5. **Only `pending` elements get probed.** Unchanged elements keep their existing observations.
 6. Removed elements keep their IDs and get `Status: removed`. Never renumber.
 
 **Removal needs evidence, not an impression** (V061). An element may only be marked `removed` when
-its `Selector:` was resolved against a fresh load of the page and came back `Resolves: 0`, and the
-`## Delta` lists it under `Removed:`. Absence from a snapshot is not the same as absence from the
-page: a control inside a collapsed panel, behind a tab, or conditional on another field's value is
-missing from the snapshot and present in the app. Deleting on that basis is how a real element gets
-written out of an artifact, and unlike every other error in this pipeline it destroys information
-rather than adding a wrong one.
+its `Selector:` was resolved against a fresh load and came back `Resolves: 0`, and the `## Delta`
+lists it under `Removed:`. Absence from a snapshot is not absence from the app: a control inside a
+collapsed panel, behind a tab, or conditional on another field's value is missing from the
+snapshot and present in the page.
 
-Present the delta at Gate 1. A delta of "nothing changed" is a complete and useful result — say so
+Present the delta at the checkpoint. "Nothing changed" is a complete and useful result — say so
 and stop rather than manufacturing work.
 
 `/pom-generate` then regenerates only the files whose components contain changed elements, and
@@ -103,12 +98,11 @@ and stop rather than manufacturing work.
 
 ## What ends the run
 
-P4 finishes, the full validator passes, and you report:
+P3 finishes, the full validator passes, and you report:
 
-- counts: elements probed, static, blocked
+- counts: recognized, probed, static, blocked
 - which components reuse registry entries and which are `NEW`
 - anything `blocked-*`, with its reason
-- any `Locator-agree: no`
 - the planned output files
 
 Then stop. Suggest `/pom-generate <slug>` as the next step; do not run it.
@@ -122,8 +116,7 @@ Then stop. Suggest `/pom-generate <slug>` as the next step; do not run it.
 | A control is destructive | Record `Status: blocked-safety`, continue. Do not click it |
 | An element cannot be reached at all | `Status: blocked-unreachable` with a note. Continue |
 | The page errors or a probe breaks it | Reload, re-verify baseline, and note it. If the page is genuinely broken, stop and tell the user — that is a bug in their app and a finding worth having |
-| A required MCP tool is missing | Record in `Meta.Tools-degraded`, follow the fallback in `03-toolbelt.md`. If a validator rule becomes unsatisfiable, say so at the gate rather than fabricating a value |
-| `Meta.Spent` reaches 1.5× `Meta.Budget` | Stop. Write the artifact, report what is probed and what is still `pending`, and let the user choose. A partial artifact with honest statuses is a usable result; an unbounded run that never reaches `/pom-generate` is not |
+| A required MCP tool is missing | Record in `Meta.Tools-degraded`, follow the fallback in `03-toolbelt.md`. If a validator rule becomes unsatisfiable, say so at the checkpoint rather than fabricating a value |
 
 Nothing in this table is a reason to skip an element silently. Every one of them ends with a
 recorded state.
