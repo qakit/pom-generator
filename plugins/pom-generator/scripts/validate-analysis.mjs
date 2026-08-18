@@ -34,12 +34,12 @@ const META_FIELDS = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase',
 const META_REQUIRED = ['URL', 'Slug', 'Analyzed', 'Viewport', 'Baseline', 'Phase'];
 
 const REGION_FIELDS = ['Root', 'Resolves', 'Contains', 'Box', 'Shot', 'Component',
-  'Open-path', 'Notes'];
+  'Open-path', 'Coverage', 'Notes'];
 const REGION_REQUIRED = ['Root', 'Resolves', 'Contains'];
 
 const ELEMENT_FIELDS = ['Region', 'Scope', 'Text', 'DOM', 'Selector', 'Resolves', 'Box',
   'Kind', 'Type', 'Registry', 'Class', 'Class-ref', 'Status',
-  'Probe', 'Value-source', 'Observed', 'Open-path', 'Reveals', 'Affects',
+  'Probe', 'Value-source', 'Evidence', 'Observed', 'Open-path', 'Reveals', 'Affects',
   'Locator', 'Notes'];
 const ELEMENT_REQUIRED_AT = {
   inventory: ['Region', 'Scope', 'Selector', 'Resolves', 'Kind', 'Type', 'Status'],
@@ -57,12 +57,33 @@ const SIMPLE_STATUSES = ['pending', 'recognized', 'probed', 'probed-by-class',
   'static-confirmed', 'removed'];
 
 /**
- * Families whose behaviour is never readable from attributes: what a select does depends on
- * what happens when you select, and a conditional field that appears on the third option is
- * invisible to any amount of DOM reading. `Probe: Read` on these is the shortcut that
- * produces a confident, wrong artifact (V019).
+ * Behaviour is never readable from attributes: what a select does depends on what happens when
+ * you select, what a button does on what happens when you click, and a conditional field that
+ * appears on the third option is invisible to any amount of DOM reading. `Probe: Read` on these
+ * is the shortcut that produces a confident, wrong artifact (V019).
+ *
+ * `Read` remains honest exactly where the markup states the answer: a link's `href`, and a
+ * container whose structure — not behaviour — is being recorded. Everything else actionable
+ * must be interacted with.
  */
-const MUST_INTERACT = ['inputs', 'selection', 'temporal', 'collections'];
+const READ_OK_TYPES = ['actions/link'];
+const readAllowed = (type, kind) =>
+  READ_OK_TYPES.includes(type) || kind === 'container'
+  || String(type || '').startsWith('other/');
+
+/**
+ * `Evidence:` is the raw tool output a probe conclusion rests on — the diff, the request log,
+ * the attribute value. It must carry at least one machine-flavoured marker; prose alone is a
+ * narrative, not evidence (V082).
+ */
+const EVIDENCE_MARKERS = /(?:^|[;\s])(diff|net|url|attr|value|console):/;
+
+/**
+ * Verbs that assert something *happened*. Legal in `Observed:` only when the probe interacted
+ * — a `Read` probe that "triggers a download" or "opens a dialog" is a prediction wearing the
+ * clothes of an observation (V083).
+ */
+const CLAIMISH = /\b(open(s|ed)?|navigat\w*|trigger\w*|download\w*|reveal\w*|filter(s|ed)|submit\w*|appear\w*|expand\w*|collaps\w*|toggle[sd]?|switch\w*|close[sd]?|remove[sd]?|delete[sd]?|drags?|reorder\w*|shows?)\b/i;
 
 /**
  * A Page Object's locators are relative to the thing that owns them, so a selector only means
@@ -147,8 +168,12 @@ const GENERATED_SELECTOR = [
   [/\._[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_-]{4,8}\b/, 'a CSS-module class including its build hash'],
 ];
 
-const DIALOGISH = /\b(dialog|modal|drawer|popup|popover|sheet|lightbox)\b/i;
-const LISTISH = /\b(dropdown|listbox|menu|autocomplete|suggestion|typeahead|combobox list)\b/i;
+// These fire only together with OPENISH — an observation that something *appeared*. "closes
+// the dialog" on a Cancel button is a true sentence about an open dialog, not a claim that one
+// was revealed, and firing on it teaches the writer to launder the word instead of the fact.
+const DIALOGISH = /\b(dialog|modal|drawer|popup|popover|sheet|lightbox|overlay)\b/i;
+const LISTISH = /\b(dropdown|listbox|menu|autocomplete|suggestion|typeahead|combobox list|result panel)\b/i;
+const OPENISH = /\b(open(s|ed)?|appear\w*|show(s|ed|n)?|reveal\w*|display\w*|pop(s|ped)?(\s+up)?)\b/i;
 
 const RULE_DESC = {
   V001: 'file header and version comment',
@@ -188,6 +213,10 @@ const RULE_DESC = {
   V071: 'Box must be four numbers describing a rendered element',
   V080: 'a recognized element must name the registry class it matched',
   V081: 'a revealed container must record how to open it',
+  V082: 'a probed element must carry the raw evidence its conclusion rests on',
+  V083: 'behaviour claimed without interacting',
+  V084: 'a component tree entry must be rooted in a region or element',
+  V085: 'every region must record its coverage arithmetic',
   W001: 'element could not be probed',
   W003: 'unmatched widget type, candidate for a new catalog entry',
   W004: 'region is large enough that it probably needs decomposing',
@@ -468,6 +497,29 @@ export function validateContent(content, opts = {}) {
       err('V081', fl(r, 'Component'), r.id,
         `revealed as ${fv(r, 'Component')} but no Open-path: records how to open it`);
     }
+
+    // ---- V085
+    // `Coverage: <claimed>/<found>` is the arithmetic that turns "did we get everything in this
+    // region?" from a feeling into a check: `found` comes from the coverage script counting
+    // interactive nodes under Root (03-toolbelt.md), `claimed` from summing what the region's
+    // elements actually resolve to. A dialog whose date picker was never inventoried shows up
+    // here as 6/7 — before generation, not after the wrapper ships without it.
+    if (at('classified')) {
+      const cov = fv(r, 'Coverage');
+      if (cov === undefined) {
+        err('V085', r.line, r.id,
+          'no Coverage: — run the coverage script over this region and record claimed/found');
+      } else {
+        const m = String(cov).match(/^(\d+)\s*\/\s*(\d+)/);
+        if (!m) {
+          err('V085', fl(r, 'Coverage'), r.id, `Coverage must be "claimed/found", got "${cov}"`);
+        } else if (Number(m[1]) < Number(m[2])) {
+          err('V085', fl(r, 'Coverage'), r.id,
+            `${m[2]} interactive nodes found under Root but only ${m[1]} claimed by elements — `
+            + 'something in this region has no element block');
+        }
+      }
+    }
   }
 
   const catalog = loadCatalogTypes();
@@ -485,7 +537,7 @@ export function validateContent(content, opts = {}) {
     // gets no wrapper, so it owes no Registry.
     if ((isActionable || kind === 'container') && !isRemoved) required.push('Registry');
     if (at('classified') && !isRemoved) required.push('Locator');
-    if (at('probed') && status === 'probed') required.push('Probe', 'Observed');
+    if (at('probed') && status === 'probed') required.push('Probe', 'Evidence', 'Observed');
 
     for (const name of required) {
       if (!e.fields.has(name)) err('V003', e.line, e.id, `missing required field "${name}"`);
@@ -672,13 +724,13 @@ export function validateContent(content, opts = {}) {
           + 'see its catalog entry');
       }
       // `Read` states that a conclusion came from an attribute the DOM already carries — an
-      // href, a disabled flag. Honest for a link; a dodge for anything whose behaviour only
-      // exists at interaction time.
+      // href, a disabled flag. Honest for a link and for a container's structure; a dodge for
+      // anything whose behaviour only exists at interaction time — including buttons, whose
+      // catalog entry requires a click precisely because a label predicts nothing.
       if (verb === 'Read') {
-        const family = (type || '').split('/')[0];
-        if (MUST_INTERACT.includes(family)) {
+        if (!readAllowed(type, kind)) {
           err('V019', fl(e, 'Probe'), e.id,
-            `Probe: Read is not available for ${family}/* — its behaviour is only observable by interacting`);
+            `Probe: Read is not available for ${type || '(no type)'} — its behaviour is only observable by interacting`);
         }
         if (reveals.length) {
           err('V019', fl(e, 'Probe'), e.id,
@@ -689,6 +741,27 @@ export function validateContent(content, opts = {}) {
       if (observed.length < 20) {
         err('V012', fl(e, 'Observed'), e.id,
           `observation too thin to be a real result (${observed.length} chars)`);
+      }
+
+      // ---- V082
+      // The evidence line is what separates an observation from a plausible sentence. It is
+      // pasted from tool output — the diff summary, the request log, the attribute read — and
+      // its absence means the conclusion rests on nothing checkable.
+      const evidence = fv(e, 'Evidence');
+      if (evidence !== undefined && !EVIDENCE_MARKERS.test(evidence)) {
+        err('V082', fl(e, 'Evidence'), e.id,
+          'Evidence must quote tool output with at least one of diff:/net:/url:/attr:/value:/console: '
+          + '— prose alone is a narrative, not evidence');
+      }
+
+      // ---- V083
+      // A Read probe may record what the markup says; it may not narrate what the control
+      // *does*. "Triggers a download", "opens the user menu" — from attributes alone these are
+      // predictions, and the fix is to click, not to phrase the prediction more confidently.
+      if (verb === 'Read' && type !== 'actions/link' && CLAIMISH.test(observed)) {
+        err('V083', fl(e, 'Observed'), e.id,
+          `"${(observed.match(CLAIMISH) || [''])[0]}" is a behaviour claim, but the probe only read `
+          + 'attributes — interact with the element or strip the claim');
       }
 
       // A typed value is an experiment, and where it came from is what makes the result mean
@@ -714,13 +787,20 @@ export function validateContent(content, opts = {}) {
       }
 
       // ---- V030 / V031
-      if (DIALOGISH.test(observed) && !reveals.some((r) => r.startsWith('C-'))) {
+      // Both demand data, not phrasing: the observation says an overlay appeared, so a C-nn
+      // must exist for it. The fix is NEVER to reword the observation — it is to record the
+      // component (or, if nothing actually opened, to re-probe, because then the observation
+      // itself is wrong). Rewording to dodge the rule falsifies the artifact.
+      if (DIALOGISH.test(observed) && OPENISH.test(observed)
+          && !reveals.some((r) => r.startsWith('C-'))) {
         err('V030', fl(e, 'Observed'), e.id,
-          'observation mentions a dialog but no C-nn component is recorded in Reveals');
+          'observation says a dialog/overlay appeared but no C-nn component is recorded in '
+          + 'Reveals — record the component; do not reword the observation');
       }
-      if (LISTISH.test(observed) && reveals.length === 0) {
+      if (LISTISH.test(observed) && OPENISH.test(observed) && reveals.length === 0) {
         err('V031', fl(e, 'Observed'), e.id,
-          'observation mentions a dropdown/list but Reveals is empty');
+          'observation says a dropdown/list appeared but Reveals is empty — record what '
+          + 'appeared; do not reword the observation');
       }
     }
 
@@ -858,9 +938,29 @@ export function validateContent(content, opts = {}) {
   // The tree and manifest exist from the checkpoint on, and they grow during probing as
   // containers are revealed — so these hold at every phase from inventory.
   const manifestFiles = new Set(doc.manifest.map((m) => m.file));
+  const pageFiles = new Set(doc.manifest.filter((m) => m.kind === 'page').map((m) => m.className));
   for (const t of doc.tree) {
     if (!/^REUSE\b/.test(t.marker) && !manifestFiles.has(t.path)) {
       err('V050', t.line, t.className, `no output manifest row for ${t.path}`);
+    }
+
+    // ---- V084
+    // A component class with no recorded root is a class the generator can only invent — its
+    // selector, its members, its whole structure come from nowhere checkable. Every [NEW]
+    // component entry must anchor itself to an R-nn, C-nn or container E-nn in its note; a
+    // grouping that has no such root is not a component, it is wishful decomposition.
+    if (!/^REUSE\b/.test(t.marker) && !pageFiles.has(t.className)) {
+      const ids = [...t.note.matchAll(/\b([REC]-\d{2,})\b/g)].map((m) => m[1]);
+      if (ids.length === 0) {
+        err('V084', t.line, t.className,
+          'tree entry names no R-nn/C-nn/E-nn root — a component the artifact cannot locate '
+          + 'is a component the generator would have to invent');
+      } else {
+        for (const id of ids) {
+          const known = regionById.has(id) || componentIds.has(id) || elementById.has(id);
+          if (!known) err('V084', t.line, t.className, `tree entry root "${id}" does not resolve`);
+        }
+      }
     }
   }
   for (const r of doc.regions) {
@@ -908,6 +1008,12 @@ function report(result, file) {
   out.push(`${e} error${e === 1 ? '' : 's'}, ${w} warning${w === 1 ? '' : 's'}  `
     + `(phase: ${result.phase}; ${result.counts.elements} elements, `
     + `${result.counts.regions} regions, ${result.counts.manifest} planned files)`);
+  if (e > 0) {
+    out.push('');
+    out.push('An error is fixed by correcting the DATA — re-probing, recording the missing');
+    out.push('component, grounding the missing count. It is never fixed by rewording Observed:');
+    out.push('or renaming a probe until the rule stops firing; that makes the artifact lie.');
+  }
   return out.join('\n');
 }
 
@@ -937,10 +1043,12 @@ const MUTATIONS = [
   ['V017', '**Locator:** `this.element.locator("[data-aid=\'active-filter-group\']")`\n**Status:** probed',
     '**Locator:** `this.element.locator("[data-aid=\'active-filter-group\']")`\n**Status:** blocked-flaky'],
   ['V018', '**Class-ref:** E-08', '**Class-ref:** E-77'],
-  // Read on a family whose behaviour only exists at interaction time
+  // Read on a type whose behaviour only exists at interaction time
   ['V019', '**Type:** actions/link', '**Type:** selection/single-select'],
+  // a button "probed" by reading its attributes — the exact shortcut that invents behaviour
+  ['V019', '**Type:** actions/link', '**Type:** actions/button'],
   ['V020', '### E-03 — Team filter\n**Region:** R-02', '### E-03 — Team filter\n**Region:** R-99'],
-  ['V021', '**Contains:** E-03, E-04, E-07, E-08, E-15', '**Contains:** E-03, E-04, E-07, E-08, E-15, E-77'],
+  ['V021', '**Contains:** E-03, E-04, E-07, E-08, E-15, E-18', '**Contains:** E-03, E-04, E-07, E-08, E-15, E-18, E-77'],
   ['V022', '**Reveals:** C-01', '**Reveals:** C-99'],
   ['V023', '(C-01, R-04, opened by E-02)', '(R-04, opened by E-02)'],
   ['V024', '**Affects:** E-11', '**Affects:** E-88'],
@@ -977,6 +1085,16 @@ const MUTATIONS = [
   // recognized without a registry class to back it
   ['V080', '**Registry:** TeamSelect', '**Registry:** NEW'],
   ['V081', '**Open-path:** click E-02 (create employee button)\n', ''],
+  // evidence replaced by a confident sentence with nothing pasted from a tool
+  ['V082', '**Evidence:** attr: href="/employees/archive"; no click handler bound',
+    '**Evidence:** the link clearly goes to the archive page'],
+  // a Read probe that narrates behaviour instead of markup
+  ['V083', '**Observed:** a bordered group of six status checkboxes under one heading; structure taken from the DOM',
+    '**Observed:** a bordered group of six status checkboxes; clicking the heading collapses the whole group'],
+  // a component with no recorded root — the generator would have to invent its selector
+  ['V084', '(R-02)', '(inside EmployeesPage)'],
+  // fewer nodes claimed than the coverage script found under the region root
+  ['V085', '**Coverage:** 3/3', '**Coverage:** 2/3'],
 ];
 
 /**

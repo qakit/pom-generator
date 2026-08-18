@@ -202,6 +202,43 @@ per row, asked of a row returns one, and the second number is the one the wrappe
 Write `resolves` into `Resolves:` verbatim. **A `0` is never rounded up** — it is the finding
 (V044). For XPath, swap `querySelectorAll` for `document.evaluate`.
 
+### The coverage pass — the region's arithmetic
+
+Runs per region: at finalize for baseline regions, and inside `probe.md` for each revealed
+container **while it is open**. It answers "did every interactive node under this root get an
+element block?" with a number instead of a feeling, and its output is the `Coverage:` field
+(V085).
+
+```js
+// browser_evaluate — one region root at a time
+(() => {
+  const root = document.querySelector("[data-aid='group-container']"); // the region's Root
+  if (!root) return { error: 'root did not resolve' };
+  const interactive = [...root.querySelectorAll(
+    "a[href], button, input, select, textarea, [role='button'], [role='link'], [role='checkbox'], "
+    + "[role='radio'], [role='combobox'], [role='option'], [role='menuitem'], [role='tab'], "
+    + "[tabindex]:not([tabindex='-1']), [onclick], [contenteditable]"
+  )].filter((n) => {
+    const r = n.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;      // rendered, not display:none template nodes
+  });
+  return {
+    found: interactive.length,
+    sample: interactive.slice(0, 40).map((n) => ({
+      tag: n.tagName.toLowerCase(),
+      hook: n.getAttribute('data-aid') || n.getAttribute('data-testid') || null,
+      text: (n.innerText || n.getAttribute('aria-label') || n.getAttribute('placeholder') || '')
+        .trim().replace(/\s+/g, ' ').slice(0, 60),
+    })),
+  };
+})()
+```
+
+`claimed` is the sum of `Resolves:` over the region's elements (count a `Class:` group once per
+resolved node; skip elements whose `Open-path:` means they are not present in this state).
+Record `Coverage: claimed/found`. When `found` is larger, the `sample` list says exactly which
+node has no element — that is the date picker the wrapper would otherwise ship without.
+
 ---
 
 ## By purpose

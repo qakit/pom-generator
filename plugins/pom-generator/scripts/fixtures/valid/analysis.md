@@ -21,17 +21,20 @@
 ### R-01 — Header
 **Root:** `[data-aid='layout_header']`
 **Resolves:** 1
+**Coverage:** 2/2
 **Contains:** E-01, E-02, E-09
 **Notes:** page-level, not extracted as a component
 
 ### R-02 — Filter panel
 **Root:** `div[class*='_filterPanel_']`
 **Resolves:** 1
-**Contains:** E-03, E-04, E-07, E-08, E-15
+**Coverage:** 6/6
+**Contains:** E-03, E-04, E-07, E-08, E-15, E-18
 
 ### R-03 — Employees table
 **Root:** `div[class*='_table_']`
 **Resolves:** 1
+**Coverage:** 26/26
 **Contains:** E-10, E-11, E-12
 
 ### R-04 — Create employee dialog
@@ -39,6 +42,7 @@
 **Resolves:** 1
 **Component:** C-01
 **Open-path:** click E-02 (create employee button)
+**Coverage:** 3/3
 **Contains:** E-05, E-06, E-16
 
 ### R-05 — Role listbox
@@ -46,6 +50,7 @@
 **Resolves:** 1
 **Component:** C-02
 **Open-path:** open C-01, then click E-05 (role select trigger)
+**Coverage:** 4/4
 **Contains:** E-17
 
 ## Elements
@@ -60,6 +65,7 @@
 **Type:** actions/link
 **Registry:** NEW
 **Probe:** Read href
+**Evidence:** attr: href="/employees/archive"; no click handler bound
 **Observed:** href="/employees/archive" — navigates to the archive list page
 **Locator:** `this.page.locator("a[class*='_archiveLink_']")`
 **Status:** probed
@@ -75,6 +81,7 @@
 **Registry:** NEW
 **Probe:** Clicked
 **Observed:** modal dialog "Create employee" opened as a portal at document.body; backdrop dims the page behind it
+**Evidence:** diff: +1 node [role='dialog'] aria-modal at document.body; url: unchanged
 **Reveals:** C-01
 **Locator:** `this.page.locator("[data-aid='create-employee-btn']")`
 **Status:** probed
@@ -104,6 +111,7 @@
 **Probe:** Typed "Rivera"
 **Value-source:** page-data
 **Observed:** table filtered live from 84 to 3 rows; a clear icon appeared inside the field; count label updated
+**Evidence:** diff: rows 84 -> 3; +1 node button[class*='_clear_']; net: GET /api/employees?q=Rivera
 **Reveals:** E-07
 **Affects:** E-11
 **Locator:** `this.element.locator("input[class*='_searchInput_']")`
@@ -120,6 +128,7 @@
 **Registry:** NEW
 **Probe:** Selected "Manager"
 **Observed:** listbox opened as a portal at document.body with 4 options; on select the Grade field appeared below the role row
+**Evidence:** diff: +1 node [role='listbox'] (4 options) at document.body; +1 node input[class*='_gradeInput_'] in R-04
 **Reveals:** C-02, E-16
 **Locator:** `this.element.locator("[data-aid='role-select']")`
 **Status:** probed
@@ -133,6 +142,7 @@
 **Text:** "Cancel"
 **Probe:** Clicked "Cancel"
 **Observed:** the create form closed; table unchanged; no request fired
+**Evidence:** diff: -1 node [role='dialog']; net: none; url: unchanged
 **Locator:** `this.element.locator("button[class*='_cancelBtn_']")`
 **Selector:** `button[class*='_cancelBtn_']`
 **Resolves:** 1
@@ -149,6 +159,7 @@
 **Open-path:** type into E-04, then
 **Probe:** Clicked
 **Observed:** input cleared; table returned to 84 rows; the icon disappeared
+**Evidence:** diff: -1 node button[class*='_clear_']; value: ""
 **Locator:** `this.element.locator("button[class*='_clear_']")`
 **Status:** probed
 
@@ -164,6 +175,7 @@
 **Class:** filter-chip
 **Probe:** Clicked chip "qa"
 **Observed:** table filtered to rows tagged "qa"; the chip gained a highlighted border
+**Evidence:** diff: table re-rendered, rows tagged "qa" remain; url: unchanged
 **Locator:** `this.element.locator("[data-aid='active-filter-group']")`
 **Status:** probed
 
@@ -209,6 +221,7 @@
 **Registry:** NEW
 **Probe:** Clicked "Name" header twice
 **Observed:** rows reordered ascending then descending; aria-sort toggled between ascending and descending
+**Evidence:** attr: aria-sort cycled ascending -> descending; diff: row order reversed
 **Locator:** `this.element.locator("th[class*='_nameHeader_']")`
 **Status:** probed
 
@@ -239,6 +252,7 @@
 **Probe:** Typed "Senior 3"
 **Value-source:** label
 **Observed:** value accepted; no validation message; nothing else changed on the form
+**Evidence:** value: "Senior 3" accepted; diff: none; console: clean
 **Locator:** `this.element.locator("input[class*='_gradeInput_']")`
 **Status:** probed
 
@@ -253,8 +267,24 @@
 **Class:** role-option
 **Probe:** Selected "Manager" option row
 **Observed:** the list closed; trigger text changed to "Manager"; the highlighted row moved
+**Evidence:** diff: -1 node [role='listbox']; attr: trigger text "Manager"
 **Locator:** `this.element.locator("[role='option']")`
 **Status:** probed
+
+### E-18 — Grouped status filters
+**Region:** R-02
+**Scope:** R-02
+**Selector:** `[data-aid='status-group']`
+**Resolves:** 1
+**Kind:** container
+**Type:** containers/panel
+**Registry:** NEW
+**Probe:** Read structure
+**Evidence:** attr: 6 label[data-aid='checkbox'] descendants; static markup, no aria-expanded
+**Observed:** a bordered group of six status checkboxes under one heading; structure taken from the DOM
+**Locator:** `this.element.locator("[data-aid='status-group']")`
+**Status:** probed
+**Notes:** compared against component-registry.md panels — nothing matches this grouping
 
 ## Component tree
 

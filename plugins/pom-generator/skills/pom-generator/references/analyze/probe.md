@@ -1,8 +1,13 @@
 # P2 — Probe
 
 **Goal:** every element still `pending` gets a real, observed outcome.
-**Produces:** `Probe`, `Observed`, `Reveals`, `Affects`, `Open-path`, terminal `Status`.
+**Produces:** `Probe`, `Evidence`, `Observed`, `Reveals`, `Affects`, `Open-path`, terminal `Status`.
 **Runs unattended** — the checkpoint already happened. The artifact is the review surface.
+
+**The one law of this phase: no evidence, no conclusion.** Every `probed` element carries an
+`Evidence:` line pasted from tool output — the diff, the request log, the attribute read (V082).
+If you find yourself writing what a control "does" without a diff or a request to point at, you
+are predicting, not probing — and a predicted artifact generates confident, wrong code.
 
 The probe list is short by construction — recognition already answered everything the registry
 knows. What is left is the genuinely unknown: is this input an autocomplete, which dropdown
@@ -92,13 +97,19 @@ If the diff is empty, check `browser_network_requests` and `browser_console_mess
 request explains a control whose effect is server-side; a console error explains a probe that
 appeared to do nothing.
 
-Write `Observed:` with what actually changed, concretely:
+Write `Evidence:` first, from the tool output, in compact tokens:
+
+> **Evidence:** diff: +1 node [role='listbox'] at document.body (4 options); net: GET
+> /api/employees?status=active; diff: rows 84 -> 31
+
+Then `Observed:` as the prose reading of that evidence:
 
 > listbox opened as a portal at body (4 options: All, Active, Suspended, Archived); GET
 > /api/employees?status=active fired; table went 84 → 31 rows
 
 Not "opens a dropdown" — that restates the element's name and is what an unprobed element looks
-like.
+like. And nothing in `Observed:` that the `Evidence:` does not show: if the evidence is an
+attribute read, the observation records the attribute, not what clicking would presumably do.
 
 **Screenshots are on-demand here, not routine.** Take one only when the DOM diff leaves a real
 ambiguity a picture would settle — an unlabeled icon, a canvas widget, a layout you cannot
@@ -123,9 +134,22 @@ Classify it from the DOM (`role`, `aria-modal`, position, backdrop), against
 A revealed **element** (clear button, validation message, conditional field) gets an `E-nn`
 continuing the same sequence, with its own `Open-path:`.
 
-Inside a revealed dialog, remember the user's own flow: select a value in each unknown dropdown
-**because fields may be dependent** — the diff after the selection is what finds the field that
-only exists for the third option.
+**A revealed container is a page in miniature, and it gets the page's discipline.** While it is
+open:
+
+1. Run the **bulk extraction script scoped to the container's root** (`03-toolbelt.md`) — not a
+   glance at the snapshot. Every interactive node it returns gets an element block. The fields a
+   skim misses — the date picker in the middle of a form, the edit and visibility icons on each
+   list row — are precisely the ones the wrapper is later blamed for not having.
+2. Run the **coverage script** over the root and record `Coverage: claimed/found` on the region
+   (V085). If found > claimed, something in the dialog has no element — find it now, while the
+   dialog is open, not after the wrapper ships without it.
+3. Note the container's **states**: a management overlay often has a list state and an edit/create
+   state reached by a button inside it. Each state's controls are inventoried; a second state
+   reached from the first records its own `Open-path:` chain.
+4. Then probe its unknowns exactly like the page's: select a value in each unknown dropdown
+   **because fields may be dependent** — the diff after the selection is what finds the field
+   that only exists for the third option.
 
 ### 5. Set a terminal status, reset if needed, write the file
 
@@ -165,6 +189,12 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/validate-analysis.mjs" --phase=probed .pom-g
 ```
 
 It checks what used to be a manual audit: nothing pending, every probed element has a real action
-verb and a substantive observation, every mentioned dialog reached the tree, every revealed
-container has an open-path. Fix what it reports — by going back and probing, never by editing the
-artifact to satisfy the rule. Then set `Meta.Phase: probed` and go to `finalize.md`.
+verb, pasted evidence and a substantive observation, every mentioned dialog reached the tree,
+every revealed container has an open-path.
+
+**Fix what it reports by correcting the data — go back and probe, record the missing component,
+paste the missing evidence. Never by editing the words.** If V030 fires on "a dialog opened",
+the missing thing is a `C-nn`, not a synonym for "dialog". If V019 fires on a `Read` probe of a
+button, the missing thing is a click, not a differently-phrased probe line. An artifact reworded
+into validity describes a page that does not exist, and every file generated from it is wrong in
+ways nobody can see. Then set `Meta.Phase: probed` and go to `finalize.md`.

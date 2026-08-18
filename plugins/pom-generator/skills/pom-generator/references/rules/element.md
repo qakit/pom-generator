@@ -182,8 +182,10 @@ The invariant is not "be fast". It is:
 - **Spend the probes on what the page is for.** Dialogs, drawers, the controls that change the
   collection, anything that reveals something, anything conditional, anything unrecognized.
 - **Never buy a conclusion cheaper than the evidence for it.** `Probe: Read` is for markup that
-  already states the answer, which is why V019 refuses it for every family whose behaviour only
-  exists at interaction time.
+  already states the answer — a link's `href`, a container's structure — which is why V019
+  refuses it for every other actionable type, buttons included, and why V083 refuses a Read
+  observation that narrates behaviour. Every probed conclusion carries its `Evidence:` line
+  pasted from tool output (V082); a conclusion without evidence is a prediction.
 - **Doubt escalates, never de-escalates.** Discovering that a "link" intercepts its click, or that
   a class member has a different handler, is a reason to probe it properly — not a reason to write
   a plausible sentence.

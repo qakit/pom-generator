@@ -71,13 +71,20 @@ behaviour was never observed should say so in the file, not look identical to on
 
 ## 4. What not to invent
 
-The artifact is the whole spec. If something is not in it, it was not observed, and writing it is
-a guess dressed as a wrapper.
+The artifact is the whole spec, and it is a **closed world**: if something is not in it, it was
+not observed, and writing it is a guess dressed as a wrapper. This is enforced mechanically in
+step 6 — every selector in the emitted code is checked against the artifact, so an invented one
+is not a style problem, it is a build failure.
 
 - no getters for elements that are not in `## Elements`
 - no methods for behaviour that is not in an `Observed:`
-- no selectors that are not in a `Locator:`
+- no selectors that are not in a `Locator:` — including "obvious" ones like `td:nth-child(2)`
+  for a row's cells; if the wrapper needs per-cell access, the analysis must have grounded the
+  cell selectors, and if it did not, that is a gap to report, not to fill
 - no assertions, no test cases, no fixtures unless `conventions.md` shows the POM layer owning them
+- **nothing from memory of the analysis session.** Generation reads the artifact, conventions,
+  registry and exemplar files — if you remember something about the page that is not in the
+  artifact, it does not exist
 
 If you find yourself wanting an element that is not there, that is a gap in the analysis. Say so;
 do not fill it.
@@ -90,12 +97,28 @@ the config file saying so.
 
 Fix every error before presenting. A generated file that does not compile is not a deliverable.
 
-## 6. Verify
+## 6. The closing gate
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/verify-generated.mjs" .pom-generator/analysis/<slug> <each generated file>
+```
+
+The mirror of step 1: the opening gate proved the artifact was worth generating from; this one
+proves the code stayed inside it. It fails on any selector the artifact never grounded (G002),
+any selector string with unbalanced quotes (G001), and any Promise-returning Playwright call
+used as a plain value (G003).
+
+**Exit 1 stops the run** exactly like step 1's gate. A G002 is fixed in the analysis — re-run
+`/pom-analyze` for the missing element — or by removing the invented getter if it was pure
+surplus. It is never fixed by wordsmithing the selector until the string check passes.
+
+## 7. Verify
 
 Follow `verify.md` — exercise the generated locators against the live page. Do not skip this
-because the code compiles; compiling proves nothing about whether a selector resolves.
+because the code compiles and the gate passed; the gate proves the selectors were grounded once,
+not that they still resolve, and not that they resolve to the right element.
 
-## 7. Update the manifest and present
+## 8. Update the manifest and present
 
 Set each manifest row to `written`, then `verified` once verification passes, and
 `Meta.Phase: generated`.

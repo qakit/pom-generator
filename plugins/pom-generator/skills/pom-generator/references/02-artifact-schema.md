@@ -66,6 +66,7 @@ region per container revealed during probing (so its children have somewhere to 
 | `Shot` | optional | Path to a region crop, if one was taken |
 | `Component` | revealed regions | `C-nn` if this region is a component revealed during probing |
 | `Open-path` | revealed regions | How to bring it into existence, e.g. `click E-07 (group-open-btn)`. Required whenever `Component:` is present (V081) |
+| `Coverage` | classified | `claimed/found` — interactive nodes the coverage script found under `Root`, versus how many this region's elements account for (V085). See `03-toolbelt.md` |
 | `Notes` | optional | Free text |
 
 `Open-path` is what lets the generated opener method, and any future re-analysis, reproduce the
@@ -92,7 +93,8 @@ One `### E-nn — Name` block per element. Fields become required as the phase a
 | `Class-ref` | when `Status: probed-by-class` | The `E-nn` that was probed and whose outcome this one inherits |
 | `Probe` | probed (`Status: probed` only) | Action verb + what was done — or `Read <attribute>` where the DOM already answers |
 | `Value-source` | probed (`Typed` only) | Where the typed value came from: `page-data`, `constraint`, `label`, `synthetic`. See `05-probe-values.md` |
-| `Observed` | probed (`Status: probed` only) | What actually changed. Concrete and specific |
+| `Evidence` | probed (`Status: probed` only) | Raw tool output the conclusion rests on, pasted not paraphrased: `diff:`, `net:`, `url:`, `attr:`, `value:`, `console:` tokens (V082) |
+| `Observed` | probed (`Status: probed` only) | What actually changed, restating the Evidence in prose. Concrete and specific — and never claiming more than the Evidence shows |
 | `Open-path` | revealed elements | How to reach an element that does not exist at baseline, e.g. `type into E-04, then` |
 | `Reveals` | when applicable | `C-nn` / `E-nn` IDs this interaction brought into existence |
 | `Affects` | when applicable | IDs of other elements this one changes |
@@ -104,7 +106,7 @@ One `### E-nn — Name` block per element. Fields become required as the phase a
 | Status | Owes | Never owes |
 |---|---|---|
 | `recognized` | `Registry: <Class>` naming a real registry entry (V080) | Probe, Observed |
-| `probed` | `Probe:` with a legal verb (V011) and a substantive `Observed:` (V012) | — |
+| `probed` | `Probe:` with a legal verb (V011), an `Evidence:` line pasted from tool output (V082), and a substantive `Observed:` (V012) | — |
 | `probed-by-class` | `Class:` and `Class-ref:` to a probed member (V017, V018) | its own Probe |
 | `static-confirmed` | `Kind: static` (V014) | Registry, Probe |
 | `blocked-*` | a reason in the status itself; surfaced as W001 | Probe, Observed |
@@ -116,10 +118,34 @@ component; its behaviour is already documented in `component-registry.md`; probi
 re-learn what the codebase already knows. The probe queue is for what recognition could *not*
 answer.
 
-**`Probe: Read …` is the evidence probe.** A link with a real `href`, a `disabled` attribute, a
-static badge — the markup states the answer and `Read href="/timeoff/archive"` records where it
-came from. It is refused (V019) for `inputs/*`, `selection/*`, `temporal/*`, `collections/*` and
-for anything with a `Reveals:` — what a select does is only observable by selecting.
+**`Probe: Read …` is the evidence probe, and it is narrow.** A link with a real `href`, or a
+container whose *structure* is being recorded — the markup states the answer and
+`Read href="/timeoff/archive"` records where it came from. It is refused (V019) for everything
+else actionable — every input, select, checkbox, **and every button, including icon buttons** —
+and for anything with a `Reveals:`. What a select does is only observable by selecting; what a
+button does is only observable by clicking. A `Read` probe's `Observed:` may state what the
+markup says and nothing more: "triggers a download", "opens the user menu" from attributes
+alone is a prediction dressed as an observation, and V083 rejects it.
+
+### Evidence is pasted, not written
+
+`Evidence:` exists because a formatted field can be filled with plausible fiction, and nothing
+downstream can tell. It holds the raw facts the tools returned — the diff summary, the request
+log, the attribute value — in compact `marker: value` tokens:
+
+```md
+**Evidence:** diff: +1 node [role='dialog'] aria-modal at document.body; net: none; url: unchanged
+```
+
+`Observed:` then narrates what the Evidence shows. The direction matters: conclusions come
+*from* evidence. If there is no diff output, no request, no attribute to paste, there was no
+probe, and the element is still `pending`.
+
+**When the validator rejects a block, fix the data, never the wording.** V030 firing on "a
+dialog opened" is not a request to write "an overlay appeared" — it is a statement that a
+component is missing from `Reveals:`. Rewording an observation until a rule stops firing makes
+the artifact pass validation while describing a page that does not exist; it is the single most
+destructive way to respond to this validator.
 
 ### Scope
 
@@ -196,6 +222,7 @@ routinely a navigation and a dialog opener. Membership is a claim about markup a
 **Type:** selection/single-select
 **Registry:** NEW
 **Probe:** Selected "Active"
+**Evidence:** diff: +1 node [role='listbox'] at document.body (4 options); net: GET /api/employees?status=active; diff: rows 84 -> 31
 **Observed:** listbox opened as a portal at body (4 options: All, Active, Suspended, Archived); on select, GET /api/employees?status=active fired; table went 84 -> 31 rows
 **Reveals:** C-02
 **Affects:** E-11
@@ -232,8 +259,11 @@ A nested markdown list. Two spaces of indent per level. Each line:
 - **ClassName** → `path/to/File.ts` [NEW] (opened by E-07)
 ```
 
-The `[NEW]` / `[REUSE <Class>]` marker is required. A parenthetical note is optional and is where
-you record what opens a dialog. Nesting mirrors real UI nesting — see `rules/component.md`.
+The `[NEW]` / `[REUSE <Class>]` marker is required. For every `[NEW]` component entry the
+parenthetical note is **not** optional: it must name the `R-nn`, `C-nn` or container `E-nn` that
+is the component's root (V084). A component with no recorded root has no selector, and its whole
+structure would have to be invented at generation time — which is exactly what V084 exists to
+prevent. Nesting mirrors real UI nesting — see `rules/component.md`.
 
 ## Section 5 — `## Output manifest`
 
@@ -280,6 +310,10 @@ field in the file. Passing `--phase` explicitly runs that phase's rule set regar
 `/pom-generate` **stops on exit 1** and writes nothing. On exit 2 it reports the warnings and
 proceeds — a `blocked-safety` element is a decision the user already made, not a defect.
 
+A second gate runs *after* code is written: `scripts/verify-generated.mjs` cross-checks every
+selector in the generated files against this artifact (closed world — see `generate/emit.md`).
+The two scripts bracket generation: nothing ungrounded goes in, nothing invented comes out.
+
 ### Rules
 
 Each rule applies from the phase listed and at every later phase.
@@ -297,15 +331,15 @@ Each rule applies from the phase listed and at every later phase.
 | V014 | inventory | `Kind: static` requires `Status: static-confirmed`; `Kind: actionable` forbids it |
 | V017 | probed | Every `Class:` has at least one member with `Status: probed` |
 | V018 | probed | `Status: probed-by-class` requires `Class-ref:` resolving to a probed member of the same class |
-| V019 | probed | `Probe: Read` is refused for `inputs/*`, `selection/*`, `temporal/*`, `collections/*` and for anything with `Reveals:` — behaviour there is only observable by interacting |
+| V019 | probed | `Probe: Read` is allowed only for `actions/link`, containers, and `other/*` — every other actionable type, **buttons included**, is only observable by interacting. Also refused for anything with `Reveals:` |
 | V020 | inventory | Every element's `Region:` resolves to a region block |
 | V021 | inventory | Every ID in a region's `Contains:` resolves to an element block |
 | V022 | probed | Every ID in `Reveals:` resolves to an element block or a `C-nn` region |
 | V023 | probed | Every `C-nn` in `Reveals:` appears in the component tree |
 | V024 | inventory | Every ID in `Affects:` resolves |
 | V025 | inventory | Element↔region membership is consistent both ways |
-| **V030** | probed | **Any element whose `Observed:` mentions a dialog, modal, drawer, popup, popover, or sheet MUST have a `Reveals:`, and every `C-nn` it reveals MUST have a row in the output manifest** |
-| V031 | probed | Any element whose `Observed:` mentions a dropdown, listbox, menu, autocomplete or suggestion list must have a `Reveals:` |
+| **V030** | probed | **Any element whose `Observed:` says a dialog, modal, drawer, popup, popover, sheet or overlay *appeared* MUST have a `C-nn` in `Reveals:`. Fixed by recording the component — never by rewording the observation** |
+| V031 | probed | Any element whose `Observed:` says a dropdown, listbox, menu, autocomplete or suggestion list *appeared* must have a `Reveals:`. Same fix discipline as V030 |
 | V040 | classified | Every `Locator:` hangs off a recognisable root — `this.<name>` or `self.<name>` |
 | V041 | classified | An element whose `Scope:` is not `page` must not root at the page, and must not reach a page handle inside its body |
 | V043 | inventory | `Resolves:` is a whole number — the count the live page returned |
@@ -323,6 +357,10 @@ Each rule applies from the phase listed and at every later phase.
 | V071 | inventory | `Box:`, when present, parses as `x,y,w,h` with a positive width and height |
 | **V080** | inventory | **`Status: recognized` requires `Registry:` naming a real class — `NEW` and empty are refused. Recognition without a registry match is a guess** |
 | **V081** | probed | **A region carrying `Component:` (a revealed container) must record `Open-path:` — a dialog nobody knows how to open cannot be verified** |
+| **V082** | probed | **Every `Status: probed` element has an `Evidence:` line carrying at least one `diff:`/`net:`/`url:`/`attr:`/`value:`/`console:` token — pasted tool output, not a confident sentence** |
+| **V083** | probed | **A `Read` probe's `Observed:` must not claim behaviour ("opens", "triggers", "downloads"…) — from attributes alone that is a prediction. Interact, or strip the claim** |
+| **V084** | inventory | **Every `[NEW]` component tree entry (except the page) names its root `R-nn`/`C-nn`/`E-nn` in the parenthetical, and that ID resolves** |
+| **V085** | classified | **Every region records `Coverage: claimed/found` from the coverage script, and claims at least as many interactive nodes as were found under its root** |
 
 ### Warnings
 

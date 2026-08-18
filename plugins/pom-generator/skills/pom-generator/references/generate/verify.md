@@ -3,6 +3,10 @@
 Generated code that compiles has proven nothing about whether its selectors find anything. This
 step exercises them against the real page.
 
+Precondition: `verify-generated.mjs` (emit.md step 6) has already passed — every selector below
+is known to come from the artifact. What is left to prove is that each one still resolves, and
+resolves to the *right* element.
+
 It is a generation-time QA step, not a deliverable: you are not writing tests for the user's suite,
 you are checking that what you just wrote works.
 

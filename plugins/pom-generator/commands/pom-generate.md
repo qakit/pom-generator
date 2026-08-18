@@ -32,10 +32,20 @@ If the artifact does not exist, stop and tell the user to run `/pom-analyze <url
 3. Emit per the output manifest — deepest component first, page last, barrel exports updated.
    Generate in the language and API style recorded in `conventions.md`, never a default assumption.
 4. Run the project's own type-check/lint as recorded in `conventions.md`. Fix every error.
-5. Verify against the live page per `references/generate/verify.md` — `browser_highlight` plus a screenshot for every
+5. **Closing gate:**
+
+   ```
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/verify-generated.mjs" .pom-generator/analysis/$ARGUMENTS <each generated file>
+   ```
+
+   Paste the actual output. **Exit 1 stops the run**: a G002 selector was invented, and the fix
+   is in the analysis (or deleting the surplus getter) — never in massaging the string.
+6. Verify against the live page per `references/generate/verify.md` — `browser_highlight` plus a screenshot for every
    getter, and **read the screenshots**. A selector that resolves to the wrong element is the
    failure this step exists to catch.
-6. Update manifest rows to `written` / `verified`, set `Meta.Phase: generated`.
+7. Update manifest rows to `written` / `verified`, set `Meta.Phase: generated`.
+   **A run that ends with rows still `planned` is a run that skipped its own verification** —
+   verify-generated flags this (G010), and so should you.
 
 ## Constraints
 
